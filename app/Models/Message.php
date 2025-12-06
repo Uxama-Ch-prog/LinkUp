@@ -20,12 +20,13 @@ class Message extends Model
         'edited_at',
     ];
 
-    protected $casts = [
-               'attachments' => 'array',
-        'read_at' => 'datetime',
-        'created_at' => 'datetime', 
-        'updated_at' => 'datetime', 
-    ];
+protected $casts = [
+    'attachments' => 'array',
+    'read_at' => 'datetime',
+    'created_at' => 'datetime',
+    'updated_at' => 'datetime',
+    'deleted_at' => 'datetime',
+];
 protected $appends = ['attachments_urls','reactions_summary','is_editable'];
 
 
@@ -50,22 +51,52 @@ protected $appends = ['attachments_urls','reactions_summary','is_editable'];
             $this->update(['read_at' => now()]);
         }
     }
-    // app/Models/Message.php - Add attachment accessor
+// app/Models/Message.php - Update the getAttachmentsUrlsAttribute method:
+
 public function getAttachmentsUrlsAttribute()
 {
     if (!$this->attachments) {
         return [];
     }
     
-    return array_map(function ($attachment) {
-        return [
-            'name' => $attachment['name'],
+    // First, get the attachments as an array
+    $attachments = $this->attachments;
+    
+    // If it's a string (JSON), decode it
+    if (is_string($attachments)) {
+        $decoded = json_decode($attachments, true);
+        
+        // If JSON decode fails, return empty array
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            return [];
+        }
+        
+        $attachments = $decoded;
+    }
+    
+    // Now $attachments should be an array, but let's double-check
+    if (!is_array($attachments)) {
+        return [];
+    }
+    
+    // Process each attachment
+    $result = [];
+    foreach ($attachments as $attachment) {
+        // Skip if not an array or doesn't have the required data
+        if (!is_array($attachment) || !isset($attachment['path'])) {
+            continue;
+        }
+        
+        $result[] = [
+            'name' => $attachment['name'] ?? basename($attachment['path']),
             'url' => asset('storage/' . $attachment['path']),
             'path' => $attachment['path'],
-            'mime_type' => $attachment['mime_type'],
-            'size' => $attachment['size'],
+            'mime_type' => $attachment['mime_type'] ?? 'application/octet-stream',
+            'size' => $attachment['size'] ?? 0,
         ];
-    }, $this->attachments);
+    }
+    
+    return $result;
 }
 public function reactions()
 {

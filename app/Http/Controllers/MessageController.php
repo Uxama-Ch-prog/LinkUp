@@ -22,72 +22,42 @@ class MessageController extends Controller
     public function __construct(protected ChatService $chatService)
     {
     }
-
-    public function index($conversationId, Request $request)
-    {
-        try {
-            $user = $request->user();
-            
-            // Verify user is part of conversation
-            $conversation = Conversation::forUser($user->id)
-                ->findOrFail($conversationId);
-            
-            // Get pagination parameters
-            $page = $request->input('page', 1);
-            $perPage = $request->input('per_page', 50);
-            
-            // Calculate offset for manual pagination
-            $offset = ($page - 1) * $perPage;
-            
-            // Get messages with eager loading - CHANGED ORDER TO 'asc'
-            $messages = Message::where('conversation_id', $conversationId)
-                ->with(['user', 'reactions.user'])
-                ->orderBy('created_at', 'asc') // CHANGED FROM 'desc' TO 'asc'
-                ->skip($offset)
-                ->take($perPage)
-                ->get()
-                ->map(function ($message) use ($user) {
-                    // Add reactions summary
-                    $message->reactions_summary = $message->reactions
-                        ->groupBy('emoji')
-                        ->map(function ($reactions, $emoji) {
-                            return [
-                                'emoji' => $emoji,
-                                'count' => $reactions->count(),
-                                'user_ids' => $reactions->pluck('user_id')->toArray()
-                            ];
-                        })
-                        ->values()
-                        ->toArray();
-                    
-                    // Format attachments URLs
-                    if ($message->attachments) {
-                        $message->attachments_urls = collect(json_decode($message->attachments, true))
-                            ->map(function ($attachment) {
-                                return [
-                                    'name' => $attachment['name'],
-                                    'url' => Storage::url($attachment['path']),
-                                    'mime_type' => $attachment['mime_type'],
-                                    'size' => $attachment['size']
-                                ];
-                            })
-                            ->toArray();
-                    } else {
-                        $message->attachments_urls = [];
-                    }
-                    
-                    return $message;
-                });
-            
-            return response()->json($messages);
-        } catch (\Exception $e) {
-            \Log::error('Error fetching messages: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Failed to fetch messages',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+public function index($conversationId, Request $request)
+{
+    try {
+        $user = $request->user();
+        
+        // Verify user is part of conversation
+        $conversation = Conversation::forUser($user->id)
+            ->findOrFail($conversationId);
+        
+        // Get pagination parameters
+        $page = $request->input('page', 1);
+        $perPage = $request->input('per_page', 50);
+        
+        // Calculate offset for manual pagination
+        $offset = ($page - 1) * $perPage;
+        
+        // Get messages with eager loading
+        $messages = Message::where('conversation_id', $conversationId)
+            ->with(['user', 'reactions.user'])
+            ->orderBy('created_at', 'asc')
+            ->skip($offset)
+            ->take($perPage)
+            ->get();
+        
+        // DO NOT modify the messages here - let the model accessor handle it
+        // The attachments_urls will be automatically added by the model's $appends property
+        
+        return response()->json($messages);
+    } catch (\Exception $e) {
+        \Log::error('Error fetching messages: ' . $e->getMessage());
+        return response()->json([
+            'message' => 'Failed to fetch messages',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     public function store(Request $request)
     {

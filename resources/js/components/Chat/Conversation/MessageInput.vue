@@ -5,15 +5,19 @@
         <FilePreview
             v-if="attachments.length > 0"
             :attachments="attachments"
-            @clear="emit('clear-attachments')"
-            @remove="emit('remove-attachment', $event)"
+            @clear="$emit('clear-attachments')"
+            @remove="$emit('remove-attachment', $event)"
         />
 
         <!-- Error message -->
-        <ErrorMessage v-if="error" :message="error" @dismiss="error = ''" />
+        <ErrorMessage
+            v-if="error"
+            :message="error"
+            @dismiss="$emit('update:error', '')"
+        />
 
         <!-- Message input form -->
-        <form @submit.prevent="emit('send')" class="flex space-x-3">
+        <form @submit.prevent="$emit('send')" class="flex space-x-3">
             <!-- File upload button -->
             <FileUploadButton @files-selected="handleFileSelect" />
 
@@ -37,7 +41,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useMessageUtils } from "../../../composables/useMessageUtils";
 import FilePreview from "./FilePreview.vue";
 import ErrorMessage from "./ErrorMessage.vue";
@@ -69,6 +73,8 @@ const emit = defineEmits([
     "typing",
     "clear-attachments",
     "remove-attachment",
+    "update:attachments", // ADD THIS LINE
+    "update:error", // ADD THIS LINE
 ]);
 
 const { getFileIcon, formatFileSize } = useMessageUtils();
@@ -95,23 +101,57 @@ function handleKeydown(event) {
 }
 
 function handleFileSelect(files) {
-    // Handle file selection logic here
     const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     const MAX_FILES = 5;
+    const newAttachments = [...props.attachments];
+    let errorMessage = "";
 
     for (const file of files) {
+        // Check file size
         if (file.size > MAX_FILE_SIZE) {
-            emit("update:error", `File "${file.name}" is too large (max 10MB)`);
+            errorMessage = `File "${file.name}" is too large (max 10MB)`;
+            emit("update:error", errorMessage);
             continue;
         }
 
-        if (props.attachments.length >= MAX_FILES) {
-            emit("update:error", `Maximum ${MAX_FILES} files allowed`);
+        // Check max files limit
+        if (newAttachments.length >= MAX_FILES) {
+            errorMessage = `Maximum ${MAX_FILES} files allowed`;
+            emit("update:error", errorMessage);
             break;
         }
 
-        // Add to attachments - you'll need to implement this
-        // attachments.value.push(file);
+        // Check for duplicate files by name and size
+        const isDuplicate = newAttachments.some(
+            (attachment) =>
+                attachment.name === file.name && attachment.size === file.size
+        );
+
+        if (!isDuplicate) {
+            // Create a file object with metadata
+            const fileObject = {
+                file: file, // The actual File object
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                previewUrl: file.type.startsWith("image/")
+                    ? URL.createObjectURL(file)
+                    : null,
+                id: Date.now() + Math.random(), // Unique ID for each file
+            };
+
+            newAttachments.push(fileObject);
+        }
+    }
+
+    // Update attachments if we added any
+    if (newAttachments.length > props.attachments.length) {
+        emit("update:attachments", newAttachments);
+
+        // Clear any previous error if files were successfully added
+        if (errorMessage === "") {
+            emit("update:error", "");
+        }
     }
 }
 </script>

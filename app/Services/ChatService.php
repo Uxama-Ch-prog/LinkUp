@@ -15,7 +15,6 @@ use App\Models\User;
 
 class ChatService
 {
- // app/Services/ChatService.php - Update getUserConversations method
     public function getUserConversations(User $user)
     {
         return $user->activeConversations()
@@ -76,7 +75,8 @@ public function sendMessage($conversationId, $userId, $body, $type = 'text', $at
     ];
 
     if (!empty($attachmentPaths)) {
-        $messageData['attachments'] = $attachmentPaths;
+        // ENCODE attachments as JSON string before saving
+        $messageData['attachments'] = json_encode($attachmentPaths);
     }
 
     \Log::info('Creating message with data:', $messageData);
@@ -85,7 +85,6 @@ public function sendMessage($conversationId, $userId, $body, $type = 'text', $at
 
     return $message->load('user');
 }
-
      public function markConversationAsRead($conversationId, $userId)
     {
         // Update the last_read_at timestamp in the participants pivot table

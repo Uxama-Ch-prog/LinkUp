@@ -27,6 +27,8 @@
             @typing="handleTyping"
             @clear-attachments="clearAttachments"
             @remove-attachment="removeAttachment"
+            @update:attachments="updateAttachments"
+            @update:error="sendError = $event"
         />
     </div>
 
@@ -75,6 +77,7 @@ const {
     sendMessage,
     removeAttachment,
     clearAttachments,
+    updateAttachments,
 } = useConversation(props);
 // realtime
 const setupConversationWebSocket = () => {

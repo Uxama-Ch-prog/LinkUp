@@ -36,7 +36,6 @@
     </div>
 </template>
 
-<!-- Dashboard.vue - Complete script section -->
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
@@ -52,13 +51,14 @@ import SearchModal from "../../components/SearchModal.vue";
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
-const chatStore = useChatStore(); // Make sure this is imported
+const chatStore = useChatStore();
 const { getUserInitials } = useConversationUtils();
-let loadTimeout = null;
+
 // State
 const currentConversationId = ref(route.params.conversationId || null);
 const showNewChatModal = ref(false);
 const showSearchModal = ref(false);
+
 // Computed
 const sortedConversations = computed(() => {
     return [...chatStore.conversations].sort((a, b) => {
@@ -78,23 +78,12 @@ watch(
         }
     }
 );
-watch(
-    () => route.params.conversationId,
-    (newId) => {
-        if (newId) {
-            // Debounce to prevent rapid reloads
-            clearTimeout(loadTimeout);
-            loadTimeout = setTimeout(() => {
-                console.log("🔄 Route changed, loading conversation:", newId);
-                currentConversationId.value = newId;
-                markConversationAsRead(newId);
-            }, 100);
-        }
-    }
-);
+
 // Lifecycle
 onMounted(async () => {
     try {
+        initializeRealtimeListeners();
+
         await Promise.all([
             chatStore.fetchConversations(),
             chatStore.fetchUsers(),
@@ -104,8 +93,6 @@ onMounted(async () => {
             await chatStore.fetchConversation(route.params.conversationId);
             markConversationAsRead(route.params.conversationId);
         }
-
-        initializeRealtimeListeners();
     } catch (error) {
         console.error("Error loading data:", error);
     }
@@ -121,7 +108,16 @@ onUnmounted(() => {
 function initializeRealtimeListeners() {
     if (!authStore.user?.id) return;
 
+    console.log(
+        "🔌 Initializing WebSocket listeners for user:",
+        authStore.user.id
+    );
+
     try {
+        if (window.Echo) {
+            window.Echo.leave(`user.${authStore.user.id}`);
+        }
+
         window.Echo.private(`user.${authStore.user.id}`)
             .listen("MessageSent", (e) => {
                 console.log("💬 Message received via Echo:", e.message);
@@ -130,6 +126,22 @@ function initializeRealtimeListeners() {
             .listen("ConversationCreated", (e) => {
                 console.log("💬 NEW conversation created:", e.conversation);
                 chatStore.handleNewConversation(e.conversation);
+            })
+            .listen(".ConversationRestored", (e) => {
+                console.log("🔄 ConversationRestored event received:", {
+                    conversationId: e.conversation?.id,
+                    participants: e.conversation?.participants?.length,
+                    fullEvent: e,
+                });
+                // Make sure we're passing the conversation object
+                if (e.conversation) {
+                    chatStore.handleConversationRestored(e.conversation);
+                } else {
+                    console.error(
+                        "No conversation data in ConversationRestored event:",
+                        e
+                    );
+                }
             })
             .listen("MessageRead", (e) => {
                 console.log("👀 Message read update:", e);
@@ -144,13 +156,9 @@ function initializeRealtimeListeners() {
                     router.push("/chat");
                 }
             })
-            .listen("ConversationRestored", (e) => {
-                console.log("🔄 Conversation restored:", e.conversation);
-                chatStore.handleConversationRestored(e.conversation);
-
-                if (!currentConversationId.value) {
-                    selectConversation(e.conversation);
-                }
+            .listen(".UserTyping", (e) => {
+                console.log("⌨️ User typing:", e);
+                handleUserTyping(e);
             });
 
         console.log("✅ Real-time listeners initialized");
@@ -158,7 +166,23 @@ function initializeRealtimeListeners() {
         console.error("❌ Error initializing real-time listeners:", error);
     }
 }
+async function refreshConversations() {
+    try {
+        await chatStore.fetchConversations();
+        console.log("✅ Conversations refreshed");
+    } catch (error) {
+        console.error("❌ Error refreshing conversations:", error);
+    }
+}
+function handleUserTyping(eventData) {
+    chatStore.setUserTyping(
+        eventData.conversation_id,
+        eventData.user_id,
+        eventData.is_typing
+    );
+}
 
+// Update handleMessageReadUpdate
 function handleMessageReadUpdate(eventData) {
     if (eventData.conversationId == currentConversationId.value) {
         markConversationAsRead(eventData.conversationId);
@@ -175,7 +199,7 @@ function handleMessageReadUpdate(eventData) {
     }
 }
 
-// FIXED: Use chatStore.conversations
+// Update markConversationAsRead
 function markConversationAsRead(conversationId) {
     if (conversationId) {
         const conversation = chatStore.conversations.find(
@@ -189,6 +213,7 @@ function markConversationAsRead(conversationId) {
     }
 }
 
+// Update handleMessageSent
 function handleMessageSent(messageData) {
     if (!messageData || !messageData.conversation_id) return;
 
@@ -205,28 +230,6 @@ function handleMessageSent(messageData) {
     }
 }
 
-function handleNewConversation(conversationData) {
-    if (!conversationData) return;
-
-    console.log("🆕 Handling new conversation:", conversationData.id);
-
-    const existingIndex = chatStore.conversations.findIndex(
-        (conv) => conv.id == conversationData.id
-    );
-
-    if (existingIndex === -1) {
-        // Add new conversation to store
-        chatStore.conversations.unshift({
-            ...conversationData,
-            unread_messages_count: 0, // New conversation, no messages yet
-        });
-
-        // Force UI update
-        chatStore.conversations = [...chatStore.conversations];
-    }
-}
-
-// FIXED: Use chatStore.conversations
 function selectConversation(conversation) {
     if (!conversation?.id) return;
 
@@ -235,25 +238,14 @@ function selectConversation(conversation) {
     markConversationAsRead(conversation.id);
 }
 
-function handleConversationDeleted(conversationId) {
-    // If the deleted conversation is currently open, close it
-    if (currentConversationId.value == conversationId) {
-        currentConversationId.value = null;
-        router.push("/chat");
-    }
-}
-
 function handleNewConversationCreated(conversation) {
+    console.log("🎯 New conversation created from modal:", conversation);
     if (conversation && conversation.id) {
+        // Force refresh the conversations list
+        chatStore.fetchConversations();
+
         currentConversationId.value = conversation.id;
         router.push(`/chat/${conversation.id}`);
-
-        const existing = chatStore.conversations.find(
-            (c) => c.id == conversation.id
-        );
-        if (!existing) {
-            chatStore.conversations.unshift(conversation);
-        }
     }
 }
 
@@ -270,7 +262,7 @@ async function createConversation(users, groupName) {
         );
 
         closeModal();
-
+        await chatStore.fetchConversations();
         // Check if the conversation is already in the store
         const existingConversation = chatStore.conversations.find(
             (c) => c.id === conversation.id

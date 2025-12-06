@@ -9,7 +9,7 @@ export function useConversation(props) {
     const route = useRoute();
     const authStore = useAuthStore();
     const chatStore = useChatStore();
-    const messagesContainer = ref(null);
+
     const effectiveConversationId = computed(() => {
         return props.conversationId || route.params.conversationId;
     });
@@ -25,6 +25,30 @@ export function useConversation(props) {
     const page = ref(1);
     const perPage = 50;
     const typingTimeout = ref(null);
+    const messagesContainer = ref(null);
+
+    // Update attachments function
+    const updateAttachments = (newAttachments) => {
+        attachments.value = newAttachments;
+    };
+    // Clear attachments with cleanup
+    const clearAttachments = () => {
+        // Clean up object URLs for images to prevent memory leaks
+        attachments.value.forEach((attachment) => {
+            if (attachment.previewUrl) {
+                URL.revokeObjectURL(attachment.previewUrl);
+            }
+        });
+        attachments.value = [];
+    };
+    // Remove single attachment
+    const removeAttachment = (index) => {
+        if (attachments.value[index]?.previewUrl) {
+            URL.revokeObjectURL(attachments.value[index].previewUrl);
+        }
+        attachments.value.splice(index, 1);
+    };
+
     // Load conversation with messages
     const loadConversation = async () => {
         if (!effectiveConversationId.value) return;
@@ -151,28 +175,55 @@ export function useConversation(props) {
 
         const formData = new FormData();
         formData.append("conversation_id", effectiveConversationId.value);
-        formData.append("body", newMessage.value.trim());
 
-        // Add attachments if any
+        // Only append body if there's text
+        if (newMessage.value.trim()) {
+            formData.append("body", newMessage.value.trim());
+        }
+
+        // Add attachments if any - FIXED: Use attachments[] format
         if (attachments.value.length > 0) {
-            attachments.value.forEach((file) => {
-                formData.append("attachments[]", file);
+            attachments.value.forEach((attachment) => {
+                // Use attachments[] for array format
+                formData.append("attachments[]", attachment.file);
             });
+        }
+
+        console.log("📤 Sending message with form data:");
+        console.log("- Conversation ID:", effectiveConversationId.value);
+        console.log("- Message body:", newMessage.value.trim());
+        console.log("- Attachments:", attachments.value.length);
+
+        // Log form data entries for debugging
+        for (let pair of formData.entries()) {
+            console.log(pair[0], pair[1]);
         }
 
         try {
             const message = await chatStore.sendMessage(formData);
             newMessage.value = "";
-            attachments.value = [];
+
+            // Clear attachments after sending
+            clearAttachments();
 
             // Handle typing stopped
             handleTyping(false);
 
             return message;
         } catch (error) {
-            sendError.value =
-                error.response?.data?.message || "Failed to send message";
-            console.error("Error sending message:", error);
+            console.error("❌ Error sending message:", error);
+
+            // Log the actual error response from server
+            if (error.response?.data) {
+                console.error("Server response:", error.response.data);
+                sendError.value =
+                    error.response.data.message ||
+                    error.response.data.errors?.attachments?.[0] ||
+                    "Failed to send message";
+            } else {
+                sendError.value = error.message || "Failed to send message";
+            }
+
             throw error;
         } finally {
             isSending.value = false;
@@ -218,7 +269,6 @@ export function useConversation(props) {
         }
     };
     // Setup WebSocket listeners
-    // In setupWebSocketListeners function
     const setupWebSocketListeners = () => {
         if (!window.Echo || !authStore.user?.id) return;
 
@@ -316,24 +366,7 @@ export function useConversation(props) {
             }
         }
     });
-    // Handle attachments
-    const addAttachment = (file) => {
-        // Check file size (max 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-            sendError.value = "File size too large. Maximum 10MB.";
-            return;
-        }
 
-        attachments.value.push(file);
-    };
-
-    const removeAttachment = (index) => {
-        attachments.value.splice(index, 1);
-    };
-
-    const clearAttachments = () => {
-        attachments.value = [];
-    };
     // Format message date
     const formatMessageDate = (dateString) => {
         if (!dateString) return "";
@@ -381,9 +414,9 @@ export function useConversation(props) {
         sendMessage,
         handleTyping,
         setupWebSocketListeners,
-        addAttachment,
         removeAttachment,
         clearAttachments,
+        updateAttachments,
         formatMessageDate,
         shouldShowDateSeparator,
         typingTimeout,
