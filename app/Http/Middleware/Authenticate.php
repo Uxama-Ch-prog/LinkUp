@@ -1,4 +1,5 @@
 <?php
+
 // app/Http/Middleware/Authenticate.php
 
 namespace App\Http\Middleware;
@@ -23,11 +24,11 @@ class Authenticate extends Middleware
     /**
      * Get the path the user should be redirected to when they are not authenticated.
      */
-protected function redirectTo($request)
-{
-    if (!$request->expectsJson()) {
-        // Use URL instead of named route to avoid errors
-        return url('/login');
+    protected function redirectTo($request)
+    {
+        if (! $request->expectsJson()) {
+            // Use URL instead of named route to avoid errors
+            return url('/login');
+        }
     }
-}
 }

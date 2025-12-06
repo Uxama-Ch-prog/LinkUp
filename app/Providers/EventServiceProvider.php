@@ -3,8 +3,6 @@
 namespace App\Providers;
 
 use App\Events\MessageSent;
-use App\Events\UserStatusUpdated;
-use App\Events\UserTyping;
 use App\Listeners\BroadcastUserStatus;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;

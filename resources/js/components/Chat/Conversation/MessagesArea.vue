@@ -57,7 +57,7 @@
 </template>
 
 <script setup>
-import { ref, onUpdated, nextTick, watch } from "vue";
+import { ref, onUpdated, nextTick, watch, computed } from "vue";
 import { useChatStore } from "../../../stores";
 import { useMessageUtils } from "../../../composables/useMessageUtils";
 import MessageBubble from "./MessageBubble.vue";

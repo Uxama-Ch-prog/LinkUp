@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Builder;
 
 class Conversation extends Model
 {
@@ -14,7 +14,7 @@ class Conversation extends Model
         'name',
         'is_group',
         'created_by',
-        'last_message_at'
+        'last_message_at',
     ];
 
     protected $casts = [
@@ -26,8 +26,8 @@ class Conversation extends Model
     public function participants()
     {
         return $this->belongsToMany(User::class, 'participants') // FIX: Changed to 'participants'
-                    ->withTimestamps()
-                    ->withPivot('last_read_at');
+            ->withTimestamps()
+            ->withPivot('last_read_at');
     }
 
     // Relationship with messages
@@ -46,8 +46,8 @@ class Conversation extends Model
     public function deletedByUsers()
     {
         return $this->belongsToMany(User::class, 'deleted_conversations')
-                    ->withTimestamps()
-                    ->withPivot('deleted_at');
+            ->withTimestamps()
+            ->withPivot('deleted_at');
     }
 
     // Scope to get conversations for a specific user (excluding deleted ones)
@@ -70,7 +70,7 @@ class Conversation extends Model
     public function markAsDeletedForUser($userId)
     {
         $this->deletedByUsers()->syncWithoutDetaching([
-            $userId => ['deleted_at' => now()]
+            $userId => ['deleted_at' => now()],
         ]);
     }
 
@@ -87,7 +87,8 @@ class Conversation extends Model
             $q->where('conversation_id', $this->id);
         });
     }
-        public function scopeFindWithDeleted(Builder $query, $id, $userId)
+
+    public function scopeFindWithDeleted(Builder $query, $id, $userId)
     {
         return $query->with(['participants', 'messages.user'])
             ->where('id', $id)

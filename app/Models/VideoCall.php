@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class VideoCall extends Model
 {
@@ -18,7 +18,7 @@ class VideoCall extends Model
         'started_at',
         'ended_at',
         'duration',
-        'call_metadata'
+        'call_metadata',
     ];
 
     protected $casts = [
@@ -45,6 +45,6 @@ class VideoCall extends Model
     public function participants()
     {
         return $this->belongsToMany(User::class, 'video_call_participants')
-                    ->withTimestamps();
+            ->withTimestamps();
     }
 }

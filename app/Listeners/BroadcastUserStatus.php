@@ -12,7 +12,7 @@ class BroadcastUserStatus implements ShouldQueue
     public function handle(Login|Logout $event): void
     {
         $isOnline = $event instanceof Login;
-        
+
         $event->user->update([
             'is_online' => $isOnline,
             'last_seen_at' => now(),

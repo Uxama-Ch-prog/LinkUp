@@ -71,7 +71,7 @@ export function useConversation(props) {
             throw error;
         }
     };
-    // Load messages with pagination
+    // In useConversation.js - loadMessages function
     const loadMessages = async (loadMore = false) => {
         if (!effectiveConversationId.value) return;
 
@@ -96,19 +96,19 @@ export function useConversation(props) {
 
             const messages = response.data || [];
 
+            console.log(
+                `📨 Loaded ${messages.length} messages, page ${page.value}`
+            );
+
             if (loadMore) {
-                // Append older messages at the beginning (since we're loading more history)
+                // When loading MORE (older) messages, add them to the BEGINNING
                 chatStore.messages = [...messages, ...chatStore.messages];
             } else {
-                // Set initial messages - they should already be in chronological order
+                // When loading initial messages, just set them
                 chatStore.messages = messages;
             }
 
             hasMoreMessages.value = messages.length === perPage;
-
-            console.log(
-                `📨 Loaded ${messages.length} messages, page ${page.value}`
-            );
 
             // After loading messages, scroll to bottom for new conversation
             if (!loadMore && messagesContainer.value) {

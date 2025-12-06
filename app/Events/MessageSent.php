@@ -2,18 +2,19 @@
 
 namespace App\Events;
 
+use App\Services\ChatService;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
-use App\Services\ChatService;
 
 class MessageSent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $message;
+
     protected $chatService;
 
     public function __construct($message)
@@ -22,11 +23,11 @@ class MessageSent implements ShouldBroadcast
         $this->chatService = app(ChatService::class);
     }
 
-public function broadcastOn()
-{
-    // Broadcast to conversation channel
-    return new PrivateChannel('conversation.' . $this->message->conversation_id);
-}
+    public function broadcastOn()
+    {
+        // Broadcast to conversation channel
+        return new PrivateChannel('conversation.'.$this->message->conversation_id);
+    }
 
     public function broadcastWith()
     {

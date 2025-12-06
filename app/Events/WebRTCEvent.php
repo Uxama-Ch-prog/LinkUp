@@ -1,10 +1,9 @@
 <?php
+
 namespace App\Events;
 
 use App\Models\VideoCall;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -15,9 +14,13 @@ class WebRTCEvent implements ShouldBroadcast
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public $call;
+
     public $type;
+
     public $data;
+
     public $fromUserId;
+
     public $toUserId;
 
     public function __construct(VideoCall $call, string $type, array $data, int $fromUserId, int $toUserId)
@@ -32,7 +35,7 @@ class WebRTCEvent implements ShouldBroadcast
     public function broadcastOn()
     {
         // Broadcast to the target user only
-        return new PrivateChannel('user.' . $this->toUserId);
+        return new PrivateChannel('user.'.$this->toUserId);
     }
 
     public function broadcastAs()

@@ -2,9 +2,7 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -23,18 +21,20 @@ class MessageDeleted implements ShouldBroadcast
 
     public function broadcastOn()
     {
-        return new PrivateChannel('conversation.' . $this->message['conversation_id']);
+        return new PrivateChannel('conversation.'.$this->message['conversation_id']);
     }
+
     public function broadcastAs()
-{
-    return 'MessageDeleted';
-}
+    {
+        return 'MessageDeleted';
+    }
+
     public function broadcastWith()
     {
         return [
             'message_id' => $this->message['id'],
             'conversation_id' => $this->message['conversation_id'],
-            'action' => 'deleted'
+            'action' => 'deleted',
         ];
     }
 }

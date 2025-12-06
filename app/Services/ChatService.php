@@ -2,16 +2,13 @@
 
 namespace App\Services;
 
+use App\Events\ConversationCreated;
+use App\Events\ConversationRestored;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\Participant;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
-use App\Events\ConversationRestored;
-use App\Events\ConversationCreated;
-use App\Events\MessageSent;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class ChatService
 {
@@ -24,68 +21,71 @@ class ChatService
             ->map(function ($conversation) use ($user) {
                 // Add unread messages count
                 $conversation->unread_messages_count = $this->getUnreadCount($conversation->id, $user->id);
+
                 return $conversation;
             });
     }
-public function sendMessage($conversationId, $userId, $body, $type = 'text', $attachments = null)
-{
-    \Log::info('ChatService sending message:', [
-        'conversation_id' => $conversationId,
-        'user_id' => $userId,
-        'body' => $body,
-        'type' => $type,
-        'attachments_count' => $attachments ? count($attachments) : 0
-    ]);
 
-    $attachmentPaths = [];
-    
-    if ($attachments) {
-        foreach ($attachments as $attachment) {
-            \Log::info('Processing attachment:', [
-                'original_name' => $attachment->getClientOriginalName(),
-                'size' => $attachment->getSize(),
-                'mime_type' => $attachment->getMimeType()
-            ]);
+    public function sendMessage($conversationId, $userId, $body, $type = 'text', $attachments = null)
+    {
+        \Log::info('ChatService sending message:', [
+            'conversation_id' => $conversationId,
+            'user_id' => $userId,
+            'body' => $body,
+            'type' => $type,
+            'attachments_count' => $attachments ? count($attachments) : 0,
+        ]);
 
-            try {
-                // Store in conversations/{id}/attachments folder
-                $path = $attachment->store("conversations/{$conversationId}/attachments", 'public');
-                $attachmentPaths[] = [
-                    'name' => $attachment->getClientOriginalName(),
-                    'path' => $path,
-                    'mime_type' => $attachment->getMimeType(),
+        $attachmentPaths = [];
+
+        if ($attachments) {
+            foreach ($attachments as $attachment) {
+                \Log::info('Processing attachment:', [
+                    'original_name' => $attachment->getClientOriginalName(),
                     'size' => $attachment->getSize(),
-                ];
-                \Log::info('Attachment stored successfully:', ['path' => $path]);
-            } catch (\Exception $e) {
-                \Log::error('Error storing attachment:', [
-                    'error' => $e->getMessage(),
-                    'file' => $attachment->getClientOriginalName()
+                    'mime_type' => $attachment->getMimeType(),
                 ]);
-                throw $e;
+
+                try {
+                    // Store in conversations/{id}/attachments folder
+                    $path = $attachment->store("conversations/{$conversationId}/attachments", 'public');
+                    $attachmentPaths[] = [
+                        'name' => $attachment->getClientOriginalName(),
+                        'path' => $path,
+                        'mime_type' => $attachment->getMimeType(),
+                        'size' => $attachment->getSize(),
+                    ];
+                    \Log::info('Attachment stored successfully:', ['path' => $path]);
+                } catch (\Exception $e) {
+                    \Log::error('Error storing attachment:', [
+                        'error' => $e->getMessage(),
+                        'file' => $attachment->getClientOriginalName(),
+                    ]);
+                    throw $e;
+                }
             }
         }
+
+        $messageData = [
+            'conversation_id' => $conversationId,
+            'user_id' => $userId,
+            'body' => $body,
+            'type' => $type,
+        ];
+
+        if (! empty($attachmentPaths)) {
+            // ENCODE attachments as JSON string before saving
+            $messageData['attachments'] = json_encode($attachmentPaths);
+        }
+
+        \Log::info('Creating message with data:', $messageData);
+
+        $message = Message::create($messageData);
+
+        return $message->load('user');
     }
 
-    $messageData = [
-        'conversation_id' => $conversationId,
-        'user_id' => $userId,
-        'body' => $body,
-        'type' => $type,
-    ];
-
-    if (!empty($attachmentPaths)) {
-        // ENCODE attachments as JSON string before saving
-        $messageData['attachments'] = json_encode($attachmentPaths);
-    }
-
-    \Log::info('Creating message with data:', $messageData);
-
-    $message = Message::create($messageData);
-
-    return $message->load('user');
-}
-     public function markConversationAsRead($conversationId, $userId)
+    public function markConversationAsRead($conversationId, $userId)
     {
         // Update the last_read_at timestamp in the participants pivot table
         DB::table('participants')
@@ -104,7 +104,8 @@ public function sendMessage($conversationId, $userId, $body, $type = 'text', $at
             $message->update(['read_at' => now()]);
         }
     }
-        public function getUnreadCount($conversationId, $userId)
+
+    public function getUnreadCount($conversationId, $userId)
     {
         // Get the last time user read messages in this conversation
         $lastRead = DB::table('participants')
@@ -123,32 +124,33 @@ public function sendMessage($conversationId, $userId, $body, $type = 'text', $at
         return Message::where('conversation_id', $conversationId)
             ->where('user_id', '!=', $userId)
             ->count();
-    } 
-        public function createConversation(User $user, array $userIds, ?string $name = null, bool $isGroup = false)
+    }
+
+    public function createConversation(User $user, array $userIds, ?string $name = null, bool $isGroup = false)
     {
         return DB::transaction(function () use ($user, $userIds, $name, $isGroup) {
             // For non-group chats (1-on-1), check if conversation already exists
-            if (!$isGroup && count($userIds) === 1) {
+            if (! $isGroup && count($userIds) === 1) {
                 $otherUserId = $userIds[0];
-                
+
                 // Check if there's an existing conversation between these two users
                 $existingConversation = $this->findExistingConversation($user->id, $otherUserId);
-                
+
                 if ($existingConversation) {
                     // Check if this conversation was deleted by the current user
                     if ($existingConversation->isDeletedForUser($user->id)) {
                         // Restore the conversation for this user
                         $existingConversation->restoreForUser($user->id);
-                        
+
                         // Load the conversation with fresh data
                         $existingConversation->load(['participants', 'latestMessage']);
-                        
+
                         // Broadcast restoration event to ALL participants
                         broadcast(new ConversationRestored($existingConversation));
-                        
+
                         return $existingConversation;
                     }
-                    
+
                     // Conversation exists and is not deleted, return it
                     return $existingConversation->load(['participants', 'latestMessage']);
                 }
@@ -168,7 +170,7 @@ public function sendMessage($conversationId, $userId, $body, $type = 'text', $at
 
             // Load relationships
             $conversation->load(['participants', 'latestMessage']);
-            
+
             // Broadcast NEW conversation event
             broadcast(new ConversationCreated($conversation));
 
@@ -200,8 +202,8 @@ public function sendMessage($conversationId, $userId, $body, $type = 'text', $at
     public function handleNewMessage($message, $conversationId, $senderId)
     {
         $conversation = Conversation::find($conversationId);
-        
-        if (!$conversation) {
+
+        if (! $conversation) {
             return;
         }
 
@@ -210,14 +212,13 @@ public function sendMessage($conversationId, $userId, $body, $type = 'text', $at
             if ($participant->id != $senderId && $conversation->isDeletedForUser($participant->id)) {
                 // Restore the conversation for this participant
                 $conversation->restoreForUser($participant->id);
-                
+
                 // Broadcast restoration to ALL participants
                 broadcast(new ConversationRestored($conversation));
-                
+
                 // Break after first restoration to avoid multiple broadcasts
                 break;
             }
         }
     }
-
 }

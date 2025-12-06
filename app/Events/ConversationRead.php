@@ -1,9 +1,9 @@
 <?php
+
 // app/Events/ConversationRead.php
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -17,13 +17,12 @@ class ConversationRead implements ShouldBroadcast
     public function __construct(
         public int $conversationId,
         public int $userId
-    ) {
-    }
+    ) {}
 
     public function broadcastOn(): array
     {
         return [
-            new PresenceChannel('chat.' . $this->conversationId),
+            new PresenceChannel('chat.'.$this->conversationId),
         ];
     }
 

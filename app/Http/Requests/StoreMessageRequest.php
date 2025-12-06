@@ -15,16 +15,17 @@ class StoreMessageRequest extends FormRequest
     {
         return [
             'conversation_id' => 'required|exists:conversations,id',
-                'body' => 'nullable|string|max:5000',
+            'body' => 'nullable|string|max:5000',
             'type' => 'required|in:text,image,file',
             'attachments' => 'sometimes|array',
             'attachments.*' => 'file|max:10240', // 10MB max
         ];
     }
+
     public function messages(): array
-{
-    return [
-                'conversation_id.required' => 'Conversation ID is required.',
+    {
+        return [
+            'conversation_id.required' => 'Conversation ID is required.',
             'conversation_id.exists' => 'The selected conversation does not exist.',
             'body.string' => 'Message must be a string.',
             'body.max' => 'Message may not be greater than 5000 characters.',
@@ -32,22 +33,23 @@ class StoreMessageRequest extends FormRequest
             'type.in' => 'Message type must be text, image, or file.',
             'attachments.max' => 'You can upload up to 5 files at once.',
             'attachments.*.max' => 'Each file must be less than 10MB.',
-    ];
-}
+        ];
+    }
+
     protected function prepareForValidation()
     {
         // Ensure body is not null
         if (is_null($this->body)) {
             $this->merge([
-                'body' => ''
+                'body' => '',
             ]);
         }
     }
-        public function attributes(): array
+
+    public function attributes(): array
     {
         return [
             'attachments.*' => 'attachment',
         ];
     }
-
 }

@@ -2,26 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\MessageDeleted;
+use App\Events\MessageRead;
 use App\Events\MessageSent;
-use App\Http\Requests\StoreMessageRequest;
+use App\Events\MessageUpdated;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\ChatService;
-use App\Events\MessageDeleted;
-use App\Events\MessageUpdated;
-use App\Events\MessageRead;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 
 class MessageController extends Controller
 {
-    public function __construct(protected ChatService $chatService)
-    {
-    }
+    public function __construct(protected ChatService $chatService) {}
+
 public function index($conversationId, Request $request)
 {
     try {
@@ -38,16 +33,16 @@ public function index($conversationId, Request $request)
         // Calculate offset for manual pagination
         $offset = ($page - 1) * $perPage;
         
-        // Get messages with eager loading
+        // Get messages with eager loading - order by newest first (desc)
         $messages = Message::where('conversation_id', $conversationId)
             ->with(['user', 'reactions.user'])
-            ->orderBy('created_at', 'asc')
+            ->orderBy('created_at', 'desc') // NEWEST first for pagination
             ->skip($offset)
             ->take($perPage)
             ->get();
         
-        // DO NOT modify the messages here - let the model accessor handle it
-        // The attachments_urls will be automatically added by the model's $appends property
+        // Reverse the order so oldest is first, newest is last
+        $messages = $messages->reverse()->values();
         
         return response()->json($messages);
     } catch (\Exception $e) {
@@ -63,7 +58,7 @@ public function index($conversationId, Request $request)
     {
         try {
             \Log::info('Sending message with data:', $request->all());
-            
+
             $validated = $request->validate([
                 'conversation_id' => 'required|exists:conversations,id',
                 'body' => 'nullable|string|max:5000',
@@ -72,58 +67,60 @@ public function index($conversationId, Request $request)
             ]);
 
             $user = $request->user();
-            
+
             // Verify user is a participant in the conversation
             $isParticipant = DB::table('participants')
                 ->where('conversation_id', $validated['conversation_id'])
                 ->where('user_id', $user->id)
                 ->exists();
-            
-            if (!$isParticipant) {
+
+            if (! $isParticipant) {
                 \Log::warning('User not in conversation', [
                     'user_id' => $user->id,
-                    'conversation_id' => $validated['conversation_id']
+                    'conversation_id' => $validated['conversation_id'],
                 ]);
+
                 return response()->json(['message' => 'You are not a participant in this conversation'], 403);
             }
-            
+
             \Log::info('Creating message via ChatService');
-            
+
             // Use ChatService to send message
-        $message = $this->chatService->sendMessage(
-            $validated['conversation_id'],
-            $user->id,
-            $validated['body'] ?? '',
-            'text',
-            $request->hasFile('attachments') ? $request->file('attachments') : null
-        );
-            
+            $message = $this->chatService->sendMessage(
+                $validated['conversation_id'],
+                $user->id,
+                $validated['body'] ?? '',
+                'text',
+                $request->hasFile('attachments') ? $request->file('attachments') : null
+            );
+
             // Update conversation last message time
             Conversation::where('id', $validated['conversation_id'])
-            ->update(['last_message_at' => now()]);
-            
+                ->update(['last_message_at' => now()]);
+
             // Load the message with user relationship
             $message->load('user');
-                  // Handle conversation restoration if needed
-        $this->chatService->handleNewMessage($message, $validated['conversation_id'], $user->id);
-        
-            
+            // Handle conversation restoration if needed
+            $this->chatService->handleNewMessage($message, $validated['conversation_id'], $user->id);
+
             // Broadcast the message to all participants
             broadcast(new MessageSent($message))->toOthers();
-            
+
             return response()->json($message);
-            
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Log::error('Message validation failed:', ['errors' => $e->errors()]);
+
             return response()->json([
                 'message' => 'Validation failed',
-                'errors' => $e->errors()
+                'errors' => $e->errors(),
             ], 422);
         } catch (\Exception $e) {
-            \Log::error('Error sending message: ' . $e->getMessage());
+            \Log::error('Error sending message: '.$e->getMessage());
+
             return response()->json([
                 'message' => 'Failed to send message',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -131,31 +128,32 @@ public function index($conversationId, Request $request)
     public function destroy($id)
     {
         \Log::info('Deleting message:', ['message_id' => $id, 'user_id' => auth()->id()]);
-        
+
         $message = Message::where('id', $id)
             ->where('user_id', auth()->id())
             ->first();
 
-        if (!$message) {
+        if (! $message) {
             \Log::warning('Message not found or user not authorized', [
                 'message_id' => $id,
-                'user_id' => auth()->id()
+                'user_id' => auth()->id(),
             ]);
+
             return response()->json([
-                'error' => 'Message not found or you are not authorized to delete it'
+                'error' => 'Message not found or you are not authorized to delete it',
             ], 404);
         }
 
         $conversationId = $message->conversation_id;
-        
+
         // Store message data before deletion for broadcasting
         $messageData = [
             'id' => $message->id,
             'conversation_id' => $message->conversation_id,
             'user_id' => $message->user_id,
-            'deleted_at' => now()->toISOString()
+            'deleted_at' => now()->toISOString(),
         ];
-        
+
         // Soft delete the message
         $message->delete();
 
@@ -164,34 +162,35 @@ public function index($conversationId, Request $request)
 
         return response()->json([
             'success' => true,
-            'message' => 'Message deleted successfully'
+            'message' => 'Message deleted successfully',
         ]);
     }
 
- // In MessageController.php - Ensure markAsRead broadcasts
-public function markAsRead($messageId)
-{
-    try {
-        $message = Message::findOrFail($messageId);
-        $user = Auth::user();
-        
-        // Mark the specific message as read
-        if (!$message->read_at) {
-            $message->update(['read_at' => now()]);
-            
-            // Broadcast read receipt
-            broadcast(new MessageRead($message->conversation_id, $user->id, $messageId));
+    // In MessageController.php - Ensure markAsRead broadcasts
+    public function markAsRead($messageId)
+    {
+        try {
+            $message = Message::findOrFail($messageId);
+            $user = Auth::user();
+
+            // Mark the specific message as read
+            if (! $message->read_at) {
+                $message->update(['read_at' => now()]);
+
+                // Broadcast read receipt
+                broadcast(new MessageRead($message->conversation_id, $user->id, $messageId));
+            }
+
+            return response()->json(['message' => 'Message marked as read']);
+        } catch (\Exception $e) {
+            \Log::error('Error marking message as read: '.$e->getMessage());
+
+            return response()->json([
+                'message' => 'Failed to mark message as read',
+                'error' => $e->getMessage(),
+            ], 500);
         }
-        
-        return response()->json(['message' => 'Message marked as read']);
-    } catch (\Exception $e) {
-        \Log::error('Error marking message as read: ' . $e->getMessage());
-        return response()->json([
-            'message' => 'Failed to mark message as read',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
 
     public function update(Request $request, $id)
     {
@@ -207,7 +206,7 @@ public function markAsRead($messageId)
         $messageAge = now()->diffInMinutes($message->created_at);
         if ($messageAge > 15) {
             return response()->json([
-                'error' => 'Message can only be edited within 15 minutes of sending'
+                'error' => 'Message can only be edited within 15 minutes of sending',
             ], 403);
         }
 
@@ -224,8 +223,7 @@ public function markAsRead($messageId)
 
         return response()->json([
             'message' => $message,
-            'original_body' => $originalBody
+            'original_body' => $originalBody,
         ]);
     }
-    
 }

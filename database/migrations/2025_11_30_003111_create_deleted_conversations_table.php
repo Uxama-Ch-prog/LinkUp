@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId('conversation_id')->constrained()->onDelete('cascade');
             $table->timestamp('deleted_at');
             $table->timestamps();
-            
+
             $table->unique(['user_id', 'conversation_id']);
         });
     }

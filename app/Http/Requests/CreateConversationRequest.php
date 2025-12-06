@@ -16,11 +16,12 @@ class CreateConversationRequest extends FormRequest
         return [
             'user_ids' => 'required|array|min:1',
             'user_ids.*' => 'exists:users,id',
-                 'name' => 'nullable|string|max:255',
+            'name' => 'nullable|string|max:255',
             'is_group' => 'boolean',
         ];
     }
-       public function messages(): array
+
+    public function messages(): array
     {
         return [
             'user_ids.required' => 'At least one user must be selected.',
@@ -29,18 +30,19 @@ class CreateConversationRequest extends FormRequest
             'user_ids.*.exists' => 'One or more selected users do not exist.',
         ];
     }
-       protected function prepareForValidation()
+
+    protected function prepareForValidation()
     {
         // Convert null name to empty string
         if (is_null($this->name)) {
             $this->merge([
-                'name' => ''
+                'name' => '',
             ]);
         }
 
         // Ensure is_group is a boolean
         $this->merge([
-            'is_group' => filter_var($this->is_group, FILTER_VALIDATE_BOOLEAN)
+            'is_group' => filter_var($this->is_group, FILTER_VALIDATE_BOOLEAN),
         ]);
     }
 }

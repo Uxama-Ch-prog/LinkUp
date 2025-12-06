@@ -2,7 +2,6 @@
 
 namespace App\Events;
 
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -17,13 +16,12 @@ class UserTyping implements ShouldBroadcast
         public int $conversationId,
         public int $userId,
         public bool $isTyping
-    ) {
-    }
+    ) {}
 
     public function broadcastOn(): array
     {
         return [
-            new PresenceChannel('chat.' . $this->conversationId),
+            new PresenceChannel('chat.'.$this->conversationId),
         ];
     }
 
@@ -31,7 +29,8 @@ class UserTyping implements ShouldBroadcast
     {
         return 'user.typing';
     }
-        public function broadcastWith(): array
+
+    public function broadcastWith(): array
     {
         return [
             'user_id' => $this->userId,

@@ -2,16 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\VideoCall;
-use App\Models\Conversation;
-use App\Events\CallInitiated;
 use App\Events\CallAccepted;
-use App\Events\CallRejected;
 use App\Events\CallEnded;
+use App\Events\CallInitiated;
+use App\Events\CallRejected;
 use App\Events\WebRTCEvent;
+use App\Models\Conversation;
+use App\Models\VideoCall;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
 
 class VideoCallController extends Controller
 {
@@ -27,20 +26,20 @@ class VideoCallController extends Controller
 
         try {
             $conversation = Conversation::findOrFail($validated['conversation_id']);
-            
+
             // Verify caller is participant
-            if (!$conversation->participants()->where('user_id', auth()->id())->exists()) {
+            if (! $conversation->participants()->where('user_id', auth()->id())->exists()) {
                 return response()->json(['error' => 'Not a participant'], 403);
             }
 
             // Verify receiver is participant
-            if (!$conversation->participants()->where('user_id', $validated['receiver_id'])->exists()) {
+            if (! $conversation->participants()->where('user_id', $validated['receiver_id'])->exists()) {
                 return response()->json(['error' => 'Receiver not in conversation'], 403);
             }
 
             // Check for existing active call (but cleanup stuck calls older than 2 minutes)
             $twoMinutesAgo = now()->subMinutes(2);
-            
+
             // Delete stuck calls (ringing/active for more than 2 minutes)
             VideoCall::where('conversation_id', $conversation->id)
                 ->whereIn('status', ['ringing', 'active'])
@@ -84,7 +83,8 @@ class VideoCallController extends Controller
                 'call' => $call,
             ]);
         } catch (\Exception $e) {
-            \Log::error('❌ Error initiating call: ' . $e->getMessage());
+            \Log::error('❌ Error initiating call: '.$e->getMessage());
+
             return response()->json(['error' => 'Failed to initiate call'], 500);
         }
     }
@@ -129,7 +129,8 @@ class VideoCallController extends Controller
                 'call' => $call,
             ]);
         } catch (\Exception $e) {
-            \Log::error('❌ Error accepting call: ' . $e->getMessage());
+            \Log::error('❌ Error accepting call: '.$e->getMessage());
+
             return response()->json(['error' => 'Failed to accept call'], 500);
         }
     }
@@ -166,7 +167,8 @@ class VideoCallController extends Controller
                 'call' => $call,
             ]);
         } catch (\Exception $e) {
-            \Log::error('❌ Error rejecting call: ' . $e->getMessage());
+            \Log::error('❌ Error rejecting call: '.$e->getMessage());
+
             return response()->json(['error' => 'Failed to reject call'], 500);
         }
     }
@@ -213,7 +215,8 @@ class VideoCallController extends Controller
                 'call' => $call,
             ]);
         } catch (\Exception $e) {
-            \Log::error('❌ Error ending call: ' . $e->getMessage());
+            \Log::error('❌ Error ending call: '.$e->getMessage());
+
             return response()->json(['error' => 'Failed to end call'], 500);
         }
     }
@@ -270,9 +273,11 @@ class VideoCallController extends Controller
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             \Log::warning('⚠️ Validation error in signal:', $e->errors());
+
             return response()->json(['error' => 'Invalid signal data', 'details' => $e->errors()], 422);
         } catch (\Exception $e) {
-            \Log::error('❌ Error processing signal: ' . $e->getMessage());
+            \Log::error('❌ Error processing signal: '.$e->getMessage());
+
             return response()->json(['error' => 'Failed to process signal'], 500);
         }
     }
@@ -282,11 +287,11 @@ class VideoCallController extends Controller
      */
     private function validateSDP($data)
     {
-        if (!isset($data['sdp']) || !is_string($data['sdp'])) {
+        if (! isset($data['sdp']) || ! is_string($data['sdp'])) {
             throw new \Exception('Invalid SDP: missing or invalid sdp field');
         }
 
-        if (!isset($data['type']) || !in_array($data['type'], ['offer', 'answer'])) {
+        if (! isset($data['type']) || ! in_array($data['type'], ['offer', 'answer'])) {
             throw new \Exception('Invalid SDP: missing or invalid type field');
         }
 
@@ -316,7 +321,7 @@ class VideoCallController extends Controller
         if ($data['type'] === 'answer') {
             $lines = explode("\r\n", $sdp);
             $hasValidSetup = false;
-            
+
             foreach ($lines as $line) {
                 // Answerer must have 'active' or 'passive', not 'actpass'
                 if (strpos($line, 'a=setup:') === 0) {
@@ -348,13 +353,14 @@ class VideoCallController extends Controller
                 ->with(['caller', 'receiver', 'conversation'])
                 ->first();
 
-            if (!$call) {
+            if (! $call) {
                 return response()->json(['call' => null]);
             }
 
             return response()->json(['call' => $call]);
         } catch (\Exception $e) {
-            \Log::error('❌ Error getting active call: ' . $e->getMessage());
+            \Log::error('❌ Error getting active call: '.$e->getMessage());
+
             return response()->json(['error' => 'Failed to get call'], 500);
         }
     }
@@ -376,7 +382,8 @@ class VideoCallController extends Controller
                 'data' => $calls,
             ]);
         } catch (\Exception $e) {
-            \Log::error('❌ Error getting call history: ' . $e->getMessage());
+            \Log::error('❌ Error getting call history: '.$e->getMessage());
+
             return response()->json(['error' => 'Failed to get history'], 500);
         }
     }

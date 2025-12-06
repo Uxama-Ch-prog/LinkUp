@@ -1,4 +1,5 @@
 <?php
+
 // database/seeders/UsersTableSeeder.php
 
 namespace Database\Seeders;
@@ -26,7 +27,7 @@ class UsersTableSeeder extends Seeder
                 'name' => 'Mike Johnson',
                 'email' => 'mike@example.com',
                 'password' => Hash::make('password'),
-                ]
+            ],
         ];
 
         foreach ($users as $user) {

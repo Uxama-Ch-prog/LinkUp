@@ -1,4 +1,5 @@
 <?php
+
 // database/migrations/2025_11_02_000004_add_missing_columns_to_users_table.php
 
 use Illuminate\Database\Migrations\Migration;
@@ -11,17 +12,17 @@ return new class extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             // Add avatar column if it doesn't exist
-            if (!Schema::hasColumn('users', 'avatar')) {
+            if (! Schema::hasColumn('users', 'avatar')) {
                 $table->string('avatar')->nullable()->after('email');
             }
-            
+
             // Add is_online column if it doesn't exist (in case previous migration failed)
-            if (!Schema::hasColumn('users', 'is_online')) {
+            if (! Schema::hasColumn('users', 'is_online')) {
                 $table->boolean('is_online')->default(false)->after('avatar');
             }
-            
+
             // Add last_seen_at column if it doesn't exist (in case previous migration failed)
-            if (!Schema::hasColumn('users', 'last_seen_at')) {
+            if (! Schema::hasColumn('users', 'last_seen_at')) {
                 $table->timestamp('last_seen_at')->nullable()->after('is_online');
             }
         });

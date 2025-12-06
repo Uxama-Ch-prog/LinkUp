@@ -2,12 +2,12 @@
 
 namespace App\Events;
 
+use App\Models\Conversation;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
-use App\Models\Conversation;
 
 class ConversationCreated implements ShouldBroadcast
 {
@@ -23,9 +23,9 @@ class ConversationCreated implements ShouldBroadcast
     public function broadcastOn()
     {
         $channels = [];
-        
+
         foreach ($this->conversation->participants as $participant) {
-            $channels[] = new PrivateChannel('user.' . $participant->id);
+            $channels[] = new PrivateChannel('user.'.$participant->id);
         }
 
         return $channels;

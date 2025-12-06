@@ -7,7 +7,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
@@ -41,8 +40,8 @@ class User extends Authenticatable
     public function conversations()
     {
         return $this->belongsToMany(Conversation::class, 'participants')
-                    ->withPivot('last_read_at')
-                    ->withTimestamps();
+            ->withPivot('last_read_at')
+            ->withTimestamps();
     }
 
     public function messages()
@@ -54,31 +53,33 @@ class User extends Authenticatable
     {
         return $this->conversations()->where('conversation_id', $conversationId)->exists();
     }
+
     public function getAvatarUrlAttribute()
-{
-    if ($this->avatar) {
-        return asset('storage/' . $this->avatar);
+    {
+        if ($this->avatar) {
+            return asset('storage/'.$this->avatar);
+        }
+
+        // Generate default avatar based on name
+        return 'https://ui-avatars.com/api/?name='.urlencode($this->name).'&color=7F9CF5&background=EBF4FF';
     }
-    
-    // Generate default avatar based on name
-    return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&color=7F9CF5&background=EBF4FF';
-}
- // Relationship with deleted conversations
+
+    // Relationship with deleted conversations
     public function deletedConversations()
     {
         return $this->belongsToMany(Conversation::class, 'deleted_conversations')
-                    ->withTimestamps()
-                    ->withPivot('deleted_at');
+            ->withTimestamps()
+            ->withPivot('deleted_at');
     }
 
     // Get conversations that are not deleted
     public function activeConversations()
     {
         return $this->conversations()
-                    ->whereDoesntHave('deletedByUsers', function ($q) {
-                        $q->where('user_id', $this->id);
-                    })
-                    ->withTimestamps()
-                    ->withPivot('last_read_at');
+            ->whereDoesntHave('deletedByUsers', function ($q) {
+                $q->where('user_id', $this->id);
+            })
+            ->withTimestamps()
+            ->withPivot('last_read_at');
     }
 }

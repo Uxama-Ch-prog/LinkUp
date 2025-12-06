@@ -16,8 +16,7 @@ class UserStatusUpdated implements ShouldBroadcast
         public int $userId,
         public bool $isOnline,
         public string $lastSeenAt
-    ) {
-    }
+    ) {}
 
     public function broadcastOn(): array
     {
@@ -30,7 +29,8 @@ class UserStatusUpdated implements ShouldBroadcast
     {
         return 'user.status.updated';
     }
-        public function broadcastWith(): array
+
+    public function broadcastWith(): array
     {
         return [
             'user_id' => $this->userId,

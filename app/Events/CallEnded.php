@@ -1,10 +1,9 @@
 <?php
+
 namespace App\Events;
 
 use App\Models\VideoCall;
-use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
-use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -25,8 +24,8 @@ class CallEnded implements ShouldBroadcast
     {
         // Broadcast to both caller and receiver
         return [
-            new PrivateChannel('user.' . $this->call->caller_id),
-            new PrivateChannel('user.' . $this->call->receiver_id),
+            new PrivateChannel('user.'.$this->call->caller_id),
+            new PrivateChannel('user.'.$this->call->receiver_id),
         ];
     }
 
