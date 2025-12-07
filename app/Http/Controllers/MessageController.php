@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Events\MessageDeleted;
-use App\Events\MessageRead;
 use App\Events\MessageSent;
+use App\Events\MessageRead;
 use App\Events\MessageUpdated;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -54,76 +54,78 @@ public function index($conversationId, Request $request)
     }
 }
 
-    public function store(Request $request)
-    {
-        try {
-            \Log::info('Sending message with data:', $request->all());
+// In MessageController.php - store method
+public function store(Request $request)
+{
+    try {
+        \Log::info('Sending message with data:', $request->all());
+        
+        $validated = $request->validate([
+            'conversation_id' => 'required|exists:conversations,id',
+            'body' => 'nullable|string|max:5000',
+            'attachments' => 'nullable|array',
+            'attachments.*' => 'file|max:10240', // 10MB max per file
+        ]);
 
-            $validated = $request->validate([
-                'conversation_id' => 'required|exists:conversations,id',
-                'body' => 'nullable|string|max:5000',
-                'attachments' => 'nullable|array',
-                'attachments.*' => 'file|max:10240', // 10MB max per file
+        $user = $request->user();
+        
+        // Verify user is a participant in the conversation
+        $isParticipant = DB::table('participants')
+            ->where('conversation_id', $validated['conversation_id'])
+            ->where('user_id', $user->id)
+            ->exists();
+        
+        if (!$isParticipant) {
+            \Log::warning('User not in conversation', [
+                'user_id' => $user->id,
+                'conversation_id' => $validated['conversation_id']
             ]);
-
-            $user = $request->user();
-
-            // Verify user is a participant in the conversation
-            $isParticipant = DB::table('participants')
-                ->where('conversation_id', $validated['conversation_id'])
-                ->where('user_id', $user->id)
-                ->exists();
-
-            if (! $isParticipant) {
-                \Log::warning('User not in conversation', [
-                    'user_id' => $user->id,
-                    'conversation_id' => $validated['conversation_id'],
-                ]);
-
-                return response()->json(['message' => 'You are not a participant in this conversation'], 403);
-            }
-
-            \Log::info('Creating message via ChatService');
-
-            // Use ChatService to send message
-            $message = $this->chatService->sendMessage(
-                $validated['conversation_id'],
-                $user->id,
-                $validated['body'] ?? '',
-                'text',
-                $request->hasFile('attachments') ? $request->file('attachments') : null
-            );
-
-            // Update conversation last message time
-            Conversation::where('id', $validated['conversation_id'])
-                ->update(['last_message_at' => now()]);
-
-            // Load the message with user relationship
-            $message->load('user');
-            // Handle conversation restoration if needed
-            $this->chatService->handleNewMessage($message, $validated['conversation_id'], $user->id);
-
-            // Broadcast the message to all participants
-            broadcast(new MessageSent($message))->toOthers();
-
-            return response()->json($message);
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            \Log::error('Message validation failed:', ['errors' => $e->errors()]);
-
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
-        } catch (\Exception $e) {
-            \Log::error('Error sending message: '.$e->getMessage());
-
-            return response()->json([
-                'message' => 'Failed to send message',
-                'error' => $e->getMessage(),
-            ], 500);
+            return response()->json(['message' => 'You are not a participant in this conversation'], 403);
         }
+        
+        \Log::info('Creating message via ChatService');
+        
+        // Use ChatService to send message
+        $message = $this->chatService->sendMessage(
+            $validated['conversation_id'],
+            $user->id,
+            $validated['body'] ?? '',
+            'text',
+            $request->hasFile('attachments') ? $request->file('attachments') : null
+        );
+        
+        // IMPORTANT: Update conversation last message time
+        $conversation = Conversation::find($validated['conversation_id']);
+        if ($conversation) {
+            $conversation->update(['last_message_at' => now()]);
+            $conversation->touch(); // Also update updated_at
+        }
+        
+        // Load the message with user relationship
+        $message->load('user');
+        
+        // Handle conversation restoration if needed
+        $this->chatService->handleNewMessage($message, $validated['conversation_id'], $user->id);
+        
+        // Broadcast the message to all participants
+        broadcast(new MessageSent($message))->toOthers();
+        
+        return response()->json($message);
+        
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        \Log::error('Message validation failed:', ['errors' => $e->errors()]);
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors' => $e->errors()
+        ], 422);
+    } catch (\Exception $e) {
+        \Log::error('Error sending message: ' . $e->getMessage());
+        return response()->json([
+            'message' => 'Failed to send message',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     public function destroy($id)
     {

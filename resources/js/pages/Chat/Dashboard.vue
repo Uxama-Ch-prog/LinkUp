@@ -58,6 +58,7 @@ const { getUserInitials } = useConversationUtils();
 const currentConversationId = ref(route.params.conversationId || null);
 const showNewChatModal = ref(false);
 const showSearchModal = ref(false);
+const isRefreshingConversations = ref(false);
 
 // Computed
 const sortedConversations = computed(() => {
@@ -119,13 +120,27 @@ function initializeRealtimeListeners() {
         }
 
         window.Echo.private(`user.${authStore.user.id}`)
-            .listen("MessageSent", (e) => {
-                console.log("💬 Message received via Echo:", e.message);
-                chatStore.handleIncomingMessage(e.message);
+            .listen(".MessageSent", (e) => {
+                console.log("💬 Message received via user channel:", e.message);
+
+                // Check if this message is for the current user
+                if (e.message && e.message.user_id !== authStore.user?.id) {
+                    // Process the message in store
+                    chatStore.handleIncomingMessage(e.message);
+
+                    // Show notification if not viewing the conversation
+                    if (
+                        currentConversationId.value != e.message.conversation_id
+                    ) {
+                        showNotification(e.message);
+                    }
+                }
             })
-            .listen("ConversationCreated", (e) => {
+            .listen(".ConversationCreated", (e) => {
+                // Add dot prefix
                 console.log("💬 NEW conversation created:", e.conversation);
                 chatStore.handleNewConversation(e.conversation);
+                refreshConversations();
             })
             .listen(".ConversationRestored", (e) => {
                 console.log("🔄 ConversationRestored event received:", {
@@ -136,6 +151,7 @@ function initializeRealtimeListeners() {
                 // Make sure we're passing the conversation object
                 if (e.conversation) {
                     chatStore.handleConversationRestored(e.conversation);
+                    refreshConversations();
                 } else {
                     console.error(
                         "No conversation data in ConversationRestored event:",
@@ -143,13 +159,17 @@ function initializeRealtimeListeners() {
                     );
                 }
             })
-            .listen("MessageRead", (e) => {
+            .listen(".MessageRead", (e) => {
+                // ADDED DOT PREFIX HERE
                 console.log("👀 Message read update:", e);
                 handleMessageReadUpdate(e);
+                refreshConversations();
             })
-            .listen("ConversationDeleted", (e) => {
+            .listen(".ConversationDeleted", (e) => {
+                // Add dot prefix
                 console.log("🗑️ Conversation deleted:", e);
                 chatStore.handleConversationDeleted(e.conversation_id);
+                refreshConversations();
 
                 if (currentConversationId.value == e.conversation_id) {
                     currentConversationId.value = null;
@@ -168,10 +188,16 @@ function initializeRealtimeListeners() {
 }
 async function refreshConversations() {
     try {
-        await chatStore.fetchConversations();
-        console.log("✅ Conversations refreshed");
+        // Only refresh if we're not currently loading
+        if (!isRefreshingConversations.value) {
+            isRefreshingConversations.value = true;
+            await chatStore.fetchConversations();
+            console.log("✅ Conversations refreshed in real-time");
+        }
     } catch (error) {
         console.error("❌ Error refreshing conversations:", error);
+    } finally {
+        isRefreshingConversations.value = false;
     }
 }
 function handleUserTyping(eventData) {
@@ -181,24 +207,60 @@ function handleUserTyping(eventData) {
         eventData.is_typing
     );
 }
+// In Dashboard.vue - add this function
+function showNotification(message) {
+    if (!("Notification" in window)) {
+        return;
+    }
 
-// Update handleMessageReadUpdate
+    if (Notification.permission === "granted") {
+        const conversation = chatStore.conversations.find(
+            (c) => c.id == message.conversation_id
+        );
+        const senderName = message.user?.name || "Someone";
+        const preview = message.body
+            ? message.body.length > 50
+                ? message.body.substring(0, 50) + "..."
+                : message.body
+            : "📎 Attachment";
+
+        new Notification(senderName, {
+            body: preview,
+            icon: "/favicon.ico",
+            tag: `message-${message.id}`,
+        });
+    } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then((permission) => {
+            if (permission === "granted") {
+                showNotification(message);
+            }
+        });
+    }
+}
 function handleMessageReadUpdate(eventData) {
-    if (eventData.conversationId == currentConversationId.value) {
-        markConversationAsRead(eventData.conversationId);
+    console.log("📊 Handling MessageRead event:", eventData);
 
-        // Also update the store
+    // The event data should have conversationId, userId, messageId
+    if (eventData.conversationId) {
+        // Update unread count for this conversation
         const conversation = chatStore.conversations.find(
             (c) => c.id == eventData.conversationId
         );
+
         if (conversation) {
-            conversation.unread_messages_count = 0;
-            // Force reactivity
-            chatStore.conversations = [...chatStore.conversations];
+            // If the message was read by another user, we might want to update UI
+            // For now, just log it
+            console.log(
+                `User ${eventData.userId} read message ${eventData.messageId} in conversation ${eventData.conversationId}`
+            );
+
+            // If the current user is viewing this conversation, update unread count
+            if (currentConversationId.value == eventData.conversationId) {
+                markConversationAsRead(eventData.conversationId);
+            }
         }
     }
 }
-
 // Update markConversationAsRead
 function markConversationAsRead(conversationId) {
     if (conversationId) {

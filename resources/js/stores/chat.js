@@ -511,7 +511,8 @@ export const useChatStore = defineStore("chat", () => {
             messageId: message.id,
             conversationId: message.conversation_id,
             fromUser: message.user_id,
-            toUser: authStore.user?.id,
+            currentUser: authStore.user?.id,
+            currentConversationId: currentConversation.value?.id,
         });
 
         // Check if conversation exists in store
@@ -524,6 +525,7 @@ export const useChatStore = defineStore("chat", () => {
             console.log(
                 "🆕 Message from deleted/restored conversation, fetching..."
             );
+            fetchNewConversation(message.conversation_id);
             return;
         }
 
@@ -532,36 +534,72 @@ export const useChatStore = defineStore("chat", () => {
         if (!messageExists) {
             // Add to the end (chronological order)
             messages.value = [...messages.value, message];
+        }
 
-            // Update the conversation in store if it exists
-            if (existingConversation) {
-                // Update last message and move to top
-                existingConversation.latest_message = message;
-                existingConversation.last_message_at = message.created_at;
+        // Update the conversation in store
+        if (existingConversation) {
+            // Update last message
+            existingConversation.latest_message = message;
+            existingConversation.last_message_at = message.created_at;
 
-                // If message is from another user, increment unread count
-                if (message.user_id !== authStore.user?.id) {
-                    existingConversation.unread_messages_count =
-                        (existingConversation.unread_messages_count || 0) + 1;
-                    console.log(
-                        "📈 Incremented unread count for restored conversation:",
-                        message.conversation_id
-                    );
-                }
+            // Check if we should increment unread count
+            const isMessageFromOtherUser =
+                message.user_id !== authStore.user?.id;
+            const isNotViewingConversation =
+                currentConversation.value?.id != message.conversation_id;
 
-                // Move conversation to top
-                moveConversationToTop(message.conversation_id);
+            console.log("📊 Unread count conditions:", {
+                isMessageFromOtherUser,
+                isNotViewingConversation,
+                shouldIncrement:
+                    isMessageFromOtherUser && isNotViewingConversation,
+            });
+
+            if (isMessageFromOtherUser && isNotViewingConversation) {
+                existingConversation.unread_messages_count =
+                    (existingConversation.unread_messages_count || 0) + 1;
+                console.log(
+                    "📈 Incremented unread count for conversation:",
+                    message.conversation_id,
+                    "New count:",
+                    existingConversation.unread_messages_count
+                );
             }
 
-            // If this is the current conversation, scroll to bottom
-            if (currentConversation.value?.id == message.conversation_id) {
-                // Trigger scroll to bottom after a short delay
-                setTimeout(() => {
-                    const event = new CustomEvent("scroll-to-bottom");
-                    window.dispatchEvent(event);
-                }, 100);
+            // Move conversation to top (FORCE REACTIVITY)
+            const conversationIndex = conversations.value.findIndex(
+                (c) => c.id == message.conversation_id
+            );
+            if (conversationIndex > 0) {
+                // Create a new array to force reactivity
+                const updatedConversations = [...conversations.value];
+                const [conversation] = updatedConversations.splice(
+                    conversationIndex,
+                    1
+                );
+                updatedConversations.unshift(conversation);
+                conversations.value = updatedConversations;
+            } else if (conversationIndex === 0) {
+                // If already at top, still force reactivity update
+                conversations.value = [...conversations.value];
             }
         }
+
+        // If this is the current conversation, scroll to bottom
+        if (currentConversation.value?.id == message.conversation_id) {
+            // Trigger scroll to bottom after a short delay
+            setTimeout(() => {
+                const event = new CustomEvent("scroll-to-bottom");
+                window.dispatchEvent(event);
+            }, 100);
+
+            // Mark as read if we're viewing it
+            if (message.user_id !== authStore.user?.id) {
+                markMessageAsRead(message.id, message.conversation_id);
+            }
+        }
+
+        console.log("✅ Message processed, conversations updated");
     }
     // Update moveConversationToTop to use proper reactivity
     function moveConversationToTop(conversationId) {
@@ -720,6 +758,24 @@ export const useChatStore = defineStore("chat", () => {
         }, {});
 
         message.reactions_summary = Object.values(grouped);
+    }
+    // Add this function to your chat store
+    async function markMessageAsRead(messageId, conversationId) {
+        try {
+            await axios.post(`/api/chat/messages/${messageId}/read`);
+
+            // Also update the conversation unread count if needed
+            const conversation = conversations.value.find(
+                (c) => c.id == conversationId
+            );
+            if (conversation && conversation.unread_messages_count > 0) {
+                conversation.unread_messages_count = 0;
+                // Force reactivity
+                conversations.value = [...conversations.value];
+            }
+        } catch (error) {
+            console.error("Error marking message as read:", error);
+        }
     }
 
     return {

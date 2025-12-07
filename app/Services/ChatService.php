@@ -81,6 +81,7 @@ class ChatService
         \Log::info('Creating message with data:', $messageData);
 
         $message = Message::create($messageData);
+        
 
         return $message->load('user');
     }
