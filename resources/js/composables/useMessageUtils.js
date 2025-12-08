@@ -84,7 +84,22 @@ export function useMessageUtils() {
             return "";
         }
     };
+    const formatRelativeTime = (dateString) => {
+        if (!dateString) return "";
 
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffSec = Math.floor(diffMs / 1000);
+        const diffMin = Math.floor(diffSec / 60);
+        const diffHour = Math.floor(diffMin / 60);
+
+        if (diffSec < 60) return "just now";
+        if (diffMin < 60) return `${diffMin}m ago`;
+        if (diffHour < 24) return `${diffHour}h ago`;
+
+        return formatMessageTime(dateString);
+    };
     const shouldShowDateSeparator = (message, index, allMessages) => {
         if (!allMessages || !Array.isArray(allMessages)) {
             console.warn("⚠️ allMessages is not defined or not an array");
@@ -155,5 +170,6 @@ export function useMessageUtils() {
         getFileIcon,
         formatFileSize,
         isImage,
+        formatRelativeTime,
     };
 }

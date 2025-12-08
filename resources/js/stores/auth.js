@@ -3,47 +3,56 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import axios from "axios";
 import router from "../router";
+import { reinitializeEcho } from "../bootstrap";
 
 export const useAuthStore = defineStore("auth", () => {
     const user = ref(null);
     const token = ref(localStorage.getItem("token"));
     const loading = ref(false);
     const error = ref(null);
-    const initialized = ref(false); // Track if auth has been initialized
+    const initialized = ref(false);
 
     const isAuthenticated = computed(() => !!token.value && !!user.value);
     const currentUser = computed(() => user.value);
 
     // Helper functions
-    // Set token when logging in
     function setToken(newToken) {
         token.value = newToken;
         localStorage.setItem("token", newToken);
         window.axios.defaults.headers.common[
             "Authorization"
         ] = `Bearer ${newToken}`;
+
+        // REINITIALIZE ECHO with new token
+        reinitializeEcho();
     }
 
-    // Clear token when logging out
     function clearToken() {
         token.value = null;
         localStorage.removeItem("token");
         delete window.axios.defaults.headers.common["Authorization"];
+
+        // REINITIALIZE ECHO without token
+        reinitializeEcho();
     }
     function setAuth(authToken, userData) {
         token.value = authToken;
         user.value = userData;
         localStorage.setItem("token", authToken);
         axios.defaults.headers.common["Authorization"] = `Bearer ${authToken}`;
-    }
 
+        // REINITIALIZE ECHO with new token
+        reinitializeEcho();
+    }
     function clearAuth() {
         user.value = null;
         token.value = null;
         localStorage.removeItem("token");
         delete axios.defaults.headers.common["Authorization"];
-    }
 
+        // REINITIALIZE ECHO without token
+        reinitializeEcho();
+    }
     async function login(credentials) {
         loading.value = true;
         error.value = null;
@@ -51,7 +60,7 @@ export const useAuthStore = defineStore("auth", () => {
         try {
             console.log("Starting login process...");
 
-            // Get CSRF cookie first (important for Sanctum)
+            // Get CSRF cookie first
             await axios.get("/sanctum/csrf-cookie", {
                 withCredentials: true,
             });

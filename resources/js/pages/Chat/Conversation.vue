@@ -79,6 +79,7 @@ const {
     clearAttachments,
     updateAttachments,
 } = useConversation(props);
+
 // realtime
 const setupConversationWebSocket = () => {
     if (!effectiveConversationId.value || !authStore.user?.id) return;
@@ -88,9 +89,20 @@ const setupConversationWebSocket = () => {
     // Listen for conversation-specific events
     window.Echo.private(`conversation.${effectiveConversationId.value}`)
         .listen(".MessageSent", (e) => {
-            console.log("💬 Message received in conversation:", e);
+            console.log("💬 Message received in conversation:", {
+                message: e.message,
+                read_at: e.message.read_at,
+                isOwnMessage: e.message.user_id === authStore.user.id,
+                shouldHaveReadReceipt:
+                    e.message.read_at &&
+                    e.message.user_id === authStore.user.id,
+            });
             // If the message is for this conversation, add it
             if (e.message.conversation_id == effectiveConversationId.value) {
+                // Ensure read_at is null for new messages from others
+                if (e.message.user_id !== authStore.user.id) {
+                    e.message.read_at = null;
+                }
                 chatStore.addMessage(e.message);
                 // Mark as read if we're the recipient
                 if (e.message.user_id !== authStore.user.id) {
@@ -107,7 +119,61 @@ const setupConversationWebSocket = () => {
                     e.is_typing
                 );
             }
+        })
+        .listen(".MessageRead", (e) => {
+            console.log("✅ Message read receipt received:", e);
+            handleMessageReadReceipt(e);
         });
+};
+
+// Handle message read receipts
+const handleMessageReadReceipt = (eventData) => {
+    console.log("📨 Processing read receipt:", {
+        eventData,
+        currentConversation: effectiveConversationId.value,
+        isOwnMessage: eventData.userId === authStore.user?.id,
+    });
+
+    // Only process if it's for this conversation
+    if (eventData.conversationId != effectiveConversationId.value) {
+        console.log("⚠️ Read receipt not for this conversation, skipping");
+        return;
+    }
+
+    // Find the message in the store and update its read_at status
+    const message = chatStore.messages.find((m) => m.id == eventData.messageId);
+
+    if (message) {
+        console.log("✅ Found message to update read status:", {
+            messageId: message.id,
+            previousReadAt: message.read_at,
+            newReadAt: new Date().toISOString(),
+        });
+
+        // Update the read_at timestamp
+        message.read_at = new Date().toISOString();
+
+        // Force reactivity update
+        chatStore.messages = [...chatStore.messages];
+
+        // Also update in the conversations list if this message is the latest
+        const conversation = chatStore.conversations.find(
+            (c) => c.id == effectiveConversationId.value
+        );
+
+        if (conversation && conversation.latest_message?.id == message.id) {
+            conversation.latest_message.read_at = message.read_at;
+            // Force reactivity
+            chatStore.conversations = [...chatStore.conversations];
+        }
+
+        console.log("✅ Message read status updated in real-time");
+    } else {
+        console.log(
+            "⚠️ Message not found in store for read receipt:",
+            eventData.messageId
+        );
+    }
 };
 
 onMounted(async () => {
@@ -138,7 +204,7 @@ watch(effectiveConversationId, async (newId, oldId) => {
         console.log("📋 Conversation ID changed to:", newId);
         // Leave old conversation channel
         if (oldId && window.Echo) {
-            window.Echo.leave(`private-conversation.${oldId}`);
+            window.Echo.leave(`conversation.${oldId}`);
         }
         await loadConversation();
         await markMessagesAsRead();

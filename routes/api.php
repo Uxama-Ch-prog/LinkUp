@@ -17,17 +17,22 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/broadcasting/auth', function (Request $request) {
     \Log::info('Broadcast auth attempt', [
         'user' => auth()->user()?->id,
+        'token' => $request->header('Authorization'),
         'channel_name' => $request->channel_name,
         'socket_id' => $request->socket_id,
     ]);
-
-    if (! auth()->check()) {
-        \Log::warning('Broadcast auth failed: User not authenticated');
-
+    
+    // Debug: Log all headers
+    \Log::info('All headers:', $request->headers->all());
+    
+    if (!auth()->check()) {
+        \Log::warning('Broadcast auth failed: User not authenticated', [
+            'attempted_auth' => $request->header('Authorization'),
+            'authenticated_user' => auth()->user(),
+        ]);
         return response()->json(['message' => 'Unauthenticated'], 401);
     }
-
-    // Let Laravel handle the channel authorization via BroadcastServiceProvider
+    
     return Broadcast::auth($request);
 })->middleware(['auth:sanctum']);
 

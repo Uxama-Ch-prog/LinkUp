@@ -26,66 +26,66 @@ class ChatService
             });
     }
 
-    public function sendMessage($conversationId, $userId, $body, $type = 'text', $attachments = null)
-    {
-        \Log::info('ChatService sending message:', [
-            'conversation_id' => $conversationId,
-            'user_id' => $userId,
-            'body' => $body,
-            'type' => $type,
-            'attachments_count' => $attachments ? count($attachments) : 0,
-        ]);
+// In ChatService.php - sendMessage method
+public function sendMessage($conversationId, $userId, $body, $type = 'text', $attachments = null)
+{
+    \Log::info('ChatService sending message:', [
+        'conversation_id' => $conversationId,
+        'user_id' => $userId,
+        'body' => $body,
+        'type' => $type,
+        'attachments_count' => $attachments ? count($attachments) : 0,
+    ]);
 
-        $attachmentPaths = [];
+    $attachmentPaths = [];
 
-        if ($attachments) {
-            foreach ($attachments as $attachment) {
-                \Log::info('Processing attachment:', [
-                    'original_name' => $attachment->getClientOriginalName(),
-                    'size' => $attachment->getSize(),
+    if ($attachments) {
+        foreach ($attachments as $attachment) {
+            \Log::info('Processing attachment:', [
+                'original_name' => $attachment->getClientOriginalName(),
+                'size' => $attachment->getSize(),
+                'mime_type' => $attachment->getMimeType(),
+            ]);
+
+            try {
+                // Store in conversations/{id}/attachments folder
+                $path = $attachment->store("conversations/{$conversationId}/attachments", 'public');
+                $attachmentPaths[] = [
+                    'name' => $attachment->getClientOriginalName(),
+                    'path' => $path,
                     'mime_type' => $attachment->getMimeType(),
+                    'size' => $attachment->getSize(),
+                ];
+                \Log::info('Attachment stored successfully:', ['path' => $path]);
+            } catch (\Exception $e) {
+                \Log::error('Error storing attachment:', [
+                    'error' => $e->getMessage(),
+                    'file' => $attachment->getClientOriginalName(),
                 ]);
-
-                try {
-                    // Store in conversations/{id}/attachments folder
-                    $path = $attachment->store("conversations/{$conversationId}/attachments", 'public');
-                    $attachmentPaths[] = [
-                        'name' => $attachment->getClientOriginalName(),
-                        'path' => $path,
-                        'mime_type' => $attachment->getMimeType(),
-                        'size' => $attachment->getSize(),
-                    ];
-                    \Log::info('Attachment stored successfully:', ['path' => $path]);
-                } catch (\Exception $e) {
-                    \Log::error('Error storing attachment:', [
-                        'error' => $e->getMessage(),
-                        'file' => $attachment->getClientOriginalName(),
-                    ]);
-                    throw $e;
-                }
+                throw $e;
             }
         }
-
-        $messageData = [
-            'conversation_id' => $conversationId,
-            'user_id' => $userId,
-            'body' => $body,
-            'type' => $type,
-        ];
-
-        if (! empty($attachmentPaths)) {
-            // ENCODE attachments as JSON string before saving
-            $messageData['attachments'] = json_encode($attachmentPaths);
-        }
-
-        \Log::info('Creating message with data:', $messageData);
-
-        $message = Message::create($messageData);
-        
-
-        return $message->load('user');
     }
 
+    $messageData = [
+        'conversation_id' => $conversationId,
+        'user_id' => $userId,
+        'body' => $body,
+        'type' => $type,
+        // DO NOT include read_at here - it should default to null
+    ];
+
+    if (! empty($attachmentPaths)) {
+        // ENCODE attachments as JSON string before saving
+        $messageData['attachments'] = json_encode($attachmentPaths);
+    }
+
+    \Log::info('Creating message with data:', $messageData);
+
+    $message = Message::create($messageData);
+
+    return $message->load('user');
+}
     public function markConversationAsRead($conversationId, $userId)
     {
         // Update the last_read_at timestamp in the participants pivot table
@@ -173,8 +173,9 @@ class ChatService
             $conversation->load(['participants', 'latestMessage']);
 
             // Broadcast NEW conversation event
-            broadcast(new ConversationCreated($conversation));
-
+             foreach ($conversation->participants as $participant) {
+            broadcast(new ConversationCreated($conversation))->toOthers();
+        }
             return $conversation;
         });
     }

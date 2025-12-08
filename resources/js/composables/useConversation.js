@@ -133,39 +133,58 @@ export function useConversation(props) {
         await loadMessages(true);
     };
 
-    // Mark messages as read
+    // In useConversation.js - markMessagesAsRead function
     const markMessagesAsRead = async () => {
         if (!effectiveConversationId.value) return;
 
         try {
-            await axios.post(
-                `/api/chat/conversations/${effectiveConversationId.value}/read`
+            // Get unread messages from the current user (messages sent by others)
+            const unreadMessages = chatStore.messages.filter(
+                (message) =>
+                    message.user_id !== authStore.user?.id && !message.read_at
             );
 
-            // Update unread count in store
-            const conversation = chatStore.conversations.find(
-                (c) => c.id == effectiveConversationId.value
-            );
-            if (conversation) {
-                conversation.unread_messages_count = 0;
-            }
+            if (unreadMessages.length > 0) {
+                console.log(
+                    `📖 Marking ${unreadMessages.length} messages as read`
+                );
 
-            // Update read status in local messages
-            chatStore.messages.forEach((message) => {
-                if (
-                    message.user_id !== authStore.user?.id &&
-                    !message.read_at
-                ) {
-                    message.read_at = new Date().toISOString();
+                // Mark each unread message as read via API
+                for (const message of unreadMessages) {
+                    try {
+                        await axios.post(
+                            `/api/chat/messages/${message.id}/read`
+                        );
+
+                        // Update locally immediately
+                        message.read_at = new Date().toISOString();
+                    } catch (error) {
+                        console.error(
+                            `Error marking message ${message.id} as read:`,
+                            error
+                        );
+                    }
                 }
-            });
+
+                // Force reactivity
+                chatStore.messages = [...chatStore.messages];
+
+                // Update conversation unread count
+                const conversation = chatStore.conversations.find(
+                    (c) => c.id == effectiveConversationId.value
+                );
+                if (conversation) {
+                    conversation.unread_messages_count = 0;
+                    // Force reactivity
+                    chatStore.conversations = [...chatStore.conversations];
+                }
+            }
 
             console.log("✅ Messages marked as read");
         } catch (error) {
             console.error("Error marking messages as read:", error);
         }
     };
-
     // Send message
     const sendMessage = async () => {
         if (!newMessage.value.trim() && attachments.value.length === 0) return;

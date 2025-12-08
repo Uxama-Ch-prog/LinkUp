@@ -6,6 +6,7 @@ use App\Events\MessageDeleted;
 use App\Events\MessageSent;
 use App\Events\MessageRead;
 use App\Events\MessageUpdated;
+use App\Events\ConversationCreated;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\ChatService;
@@ -54,7 +55,6 @@ public function index($conversationId, Request $request)
     }
 }
 
-// In MessageController.php - store method
 public function store(Request $request)
 {
     try {
@@ -94,6 +94,11 @@ public function store(Request $request)
             $request->hasFile('attachments') ? $request->file('attachments') : null
         );
         
+        // IMPORTANT: DO NOT set read_at here - messages should start as unread
+        // Ensure read_at is null for new messages
+        $message->read_at = null;
+        $message->save();
+        
         // IMPORTANT: Update conversation last message time
         $conversation = Conversation::find($validated['conversation_id']);
         if ($conversation) {
@@ -106,6 +111,21 @@ public function store(Request $request)
         
         // Handle conversation restoration if needed
         $this->chatService->handleNewMessage($message, $validated['conversation_id'], $user->id);
+        
+        // === ADD THIS SECTION ===
+        // Load conversation with participants for broadcasting
+        $conversation = Conversation::with(['participants', 'latestMessage'])
+            ->find($validated['conversation_id']);
+        
+        // If this is the first message in a new conversation, broadcast ConversationCreated
+        if ($conversation && $conversation->messages()->count() === 1) {
+            \Log::info('First message in new conversation, broadcasting ConversationCreated', [
+                'conversation_id' => $conversation->id,
+                'participant_count' => $conversation->participants->count()
+            ]);
+            broadcast(new ConversationCreated($conversation))->toOthers();
+        }
+        // === END ADDED SECTION ===
         
         // Broadcast the message to all participants
         broadcast(new MessageSent($message))->toOthers();
@@ -168,32 +188,51 @@ public function store(Request $request)
         ]);
     }
 
-    // In MessageController.php - Ensure markAsRead broadcasts
-    public function markAsRead($messageId)
-    {
-        try {
-            $message = Message::findOrFail($messageId);
-            $user = Auth::user();
+public function markAsRead($messageId)
+{
+    try {
+        $message = Message::findOrFail($messageId);
+        $user = Auth::user();
 
-            // Mark the specific message as read
-            if (! $message->read_at) {
-                $message->update(['read_at' => now()]);
+        \Log::info('Attempting to mark message as read:', [
+            'message_id' => $messageId,
+            'message_user_id' => $message->user_id,
+            'current_user_id' => $user->id,
+            'read_at_before' => $message->read_at,
+            'is_own_message' => $message->user_id === $user->id,
+        ]);
 
-                // Broadcast read receipt
-                broadcast(new MessageRead($message->conversation_id, $user->id, $messageId));
-            }
-
-            return response()->json(['message' => 'Message marked as read']);
-        } catch (\Exception $e) {
-            \Log::error('Error marking message as read: '.$e->getMessage());
-
+        // Prevent marking own messages as read
+        if ($message->user_id === $user->id) {
+            \Log::warning('Attempted to mark own message as read, skipping');
             return response()->json([
-                'message' => 'Failed to mark message as read',
-                'error' => $e->getMessage(),
-            ], 500);
+                'message' => 'Cannot mark your own message as read'
+            ], 400);
         }
-    }
 
+        // Mark the specific message as read
+        if (! $message->read_at) {
+            $message->update(['read_at' => now()]);
+
+            \Log::info('Message marked as read:', [
+                'message_id' => $messageId,
+                'read_at_after' => $message->read_at,
+            ]);
+
+            // Broadcast read receipt
+            broadcast(new MessageRead($message->conversation_id, $user->id, $messageId));
+        }
+
+        return response()->json(['message' => 'Message marked as read']);
+    } catch (\Exception $e) {
+        \Log::error('Error marking message as read: '.$e->getMessage());
+
+        return response()->json([
+            'message' => 'Failed to mark message as read',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
     public function update(Request $request, $id)
     {
         $request->validate([

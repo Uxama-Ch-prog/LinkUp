@@ -22,17 +22,39 @@
         <!-- Read receipt for user's own messages -->
         <span
             v-if="isOwnMessage"
-            class="text-xs"
-            :title="message.read_at ? 'Read' : 'Sent'"
+            class="text-xs ml-1 flex items-center"
+            :title="getReadReceiptTitle"
         >
-            <span v-if="message.read_at" class="text-blue-300">✓✓</span>
-            <span v-else class="text-gray-400">✓</span>
+            <!-- 
+                Logic:
+                - No tick: Message is being sent (no ID yet)
+                - Single gray tick: Message sent to server (has ID)
+                - Double blue tick: Message read by recipient (has read_at timestamp)
+            -->
+            <template v-if="message.read_at">
+                <!-- Read by recipient -->
+                <span class="text-blue-400" title="Read">✓✓</span>
+                <span v-if="showReadTime" class="text-xs text-blue-300 ml-1">
+                    {{ formatRelativeTime(message.read_at) }}
+                </span>
+            </template>
+            <template v-else-if="message.id">
+                <!-- Sent to server but not read yet -->
+                <span class="text-gray-400" title="Delivered">✓</span>
+            </template>
+            <template v-else>
+                <!-- Still sending -->
+                <span class="text-gray-300 animate-pulse" title="Sending..."
+                    >✓</span
+                >
+            </template>
         </span>
     </p>
 </template>
 
 <script setup>
 import { useMessageUtils } from "../../../composables/useMessageUtils";
+import { computed } from "vue";
 
 const props = defineProps({
     message: {
@@ -43,7 +65,21 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    showReadTime: {
+        type: Boolean,
+        default: false,
+    },
 });
 
-const { formatMessageTime } = useMessageUtils();
+const { formatMessageTime, formatRelativeTime } = useMessageUtils();
+
+const getReadReceiptTitle = computed(() => {
+    if (props.message.read_at) {
+        return `Read at ${formatMessageTime(props.message.read_at)}`;
+    } else if (props.message.id) {
+        return "Delivered - waiting to be read";
+    } else {
+        return "Sending...";
+    }
+});
 </script>

@@ -18,7 +18,7 @@ return new class extends Migration
             $table->text('body');
             $table->string('type')->default('text');
             $table->json('attachments')->nullable();
-            $table->timestamp('read_at')->nullable();
+           $table->timestamp('read_at')->nullable()->default(null);
             $table->timestamp('edited_at')->nullable();
             $table->softDeletes();
             $table->timestamps();

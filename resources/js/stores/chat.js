@@ -185,8 +185,15 @@ export const useChatStore = defineStore("chat", () => {
         }
     }
 
+    // In chat.js - addMessage function
     function addMessage(message) {
-        console.log("📨 Adding message to store:", message);
+        console.log("📨 Adding message to store:", {
+            id: message.id,
+            user_id: message.user_id,
+            current_user_id: authStore.user?.id,
+            read_at: message.read_at,
+            isOwnMessage: message.user_id === authStore.user?.id,
+        });
 
         // Check if message already exists to avoid duplicates
         const messageExists = messages.value.some((m) => m.id === message.id);
@@ -194,6 +201,8 @@ export const useChatStore = defineStore("chat", () => {
             console.log("⚠️ Message already exists in store, skipping");
             return;
         }
+        // For own messages, we might have a read_at from the server
+        // but only if the other user has already read it
 
         // Add new message to the end of the array (chronological order)
         messages.value = [...messages.value, message];
@@ -210,7 +219,7 @@ export const useChatStore = defineStore("chat", () => {
 
             // If message is from another user and we're not in that conversation, increment unread count
             if (
-                message.user_id !== useAuthStore.user?.id &&
+                message.user_id !== authStore.user?.id &&
                 message.conversation_id !== currentConversation.value?.id
             ) {
                 conversation.unread_messages_count =
@@ -415,30 +424,71 @@ export const useChatStore = defineStore("chat", () => {
     function handleNewConversation(conversationData) {
         if (!conversationData) return;
 
-        console.log(
-            "🆕 Store: Handling new conversation:",
-            conversationData.id
+        console.log("🆕 Store: Handling new conversation:", {
+            id: conversationData.id,
+            name: conversationData.name,
+            participants: conversationData.participants?.length || 0,
+            hasCurrentUser: conversationData.participants?.some(
+                (p) => p.id == authStore.user?.id
+            ),
+        });
+
+        // Check if current user is a participant
+        const isParticipant = conversationData.participants?.some(
+            (p) => p.id == authStore.user?.id
         );
+
+        if (!isParticipant) {
+            console.log(
+                "⚠️ Store: Current user is not a participant, skipping"
+            );
+            return;
+        }
 
         const existingIndex = conversations.value.findIndex(
             (conv) => conv.id == conversationData.id
         );
 
         if (existingIndex === -1) {
-            // Add new conversation to store with proper reactivity
-            conversations.value = [
-                {
-                    ...conversationData,
-                    unread_messages_count: 0,
-                },
-                ...conversations.value,
-            ];
-            console.log("✅ Store: New conversation added");
-        } else {
-            console.log("⚠️ Store: Conversation already exists");
-        }
-    }
+            console.log("🆕 Adding new conversation to store");
 
+            // Add with unread count if there's a latest message from another user
+            let unreadCount = 0;
+            if (
+                conversationData.latest_message &&
+                conversationData.latest_message.user_id !== authStore.user?.id
+            ) {
+                unreadCount = 1;
+            }
+
+            // Add new conversation to store with proper reactivity
+            const newConversation = {
+                ...conversationData,
+                unread_messages_count: unreadCount,
+            };
+
+            conversations.value = [newConversation, ...conversations.value];
+
+            console.log(
+                "✅ Store: New conversation added with unread count:",
+                unreadCount
+            );
+        } else {
+            console.log("⚠️ Store: Conversation already exists, updating...");
+
+            // Update existing conversation
+            conversations.value[existingIndex] = {
+                ...conversations.value[existingIndex],
+                ...conversationData,
+            };
+
+            // Move to top
+            moveConversationToTop(conversationData.id);
+        }
+
+        // Force reactivity
+        conversations.value = [...conversations.value];
+    }
     function handleConversationRestored(conversationData) {
         if (!conversationData) return;
 
@@ -513,6 +563,7 @@ export const useChatStore = defineStore("chat", () => {
             fromUser: message.user_id,
             currentUser: authStore.user?.id,
             currentConversationId: currentConversation.value?.id,
+            isOwnMessage: message.user_id === authStore.user?.id,
         });
 
         // Check if conversation exists in store
@@ -521,7 +572,6 @@ export const useChatStore = defineStore("chat", () => {
         );
 
         if (!existingConversation) {
-            // Conversation doesn't exist in store - it might have been deleted and restored
             console.log(
                 "🆕 Message from deleted/restored conversation, fetching..."
             );
@@ -593,9 +643,13 @@ export const useChatStore = defineStore("chat", () => {
                 window.dispatchEvent(event);
             }, 100);
 
-            // Mark as read if we're viewing it
+            // ONLY mark as read if the message is from another user
+            // DO NOT mark sender's own messages as read
             if (message.user_id !== authStore.user?.id) {
+                console.log("📖 Marking message as read (from other user)");
                 markMessageAsRead(message.id, message.conversation_id);
+            } else {
+                console.log("⚠️ Skipping mark as read for own message");
             }
         }
 
@@ -759,9 +813,21 @@ export const useChatStore = defineStore("chat", () => {
 
         message.reactions_summary = Object.values(grouped);
     }
-    // Add this function to your chat store
+    // In chat.js - markMessageAsRead function
     async function markMessageAsRead(messageId, conversationId) {
         try {
+            console.log("📨 Marking message as read:", {
+                messageId,
+                conversationId,
+            });
+
+            // First, check if this is actually a message from another user
+            const message = messages.value.find((m) => m.id == messageId);
+            if (message && message.user_id === authStore.user?.id) {
+                console.log("⚠️ Cannot mark own message as read, skipping");
+                return;
+            }
+
             await axios.post(`/api/chat/messages/${messageId}/read`);
 
             // Also update the conversation unread count if needed
@@ -773,6 +839,8 @@ export const useChatStore = defineStore("chat", () => {
                 // Force reactivity
                 conversations.value = [...conversations.value];
             }
+
+            console.log("✅ Message marked as read successfully");
         } catch (error) {
             console.error("Error marking message as read:", error);
         }
