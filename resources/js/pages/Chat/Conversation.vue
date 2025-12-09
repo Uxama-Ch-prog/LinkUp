@@ -89,22 +89,15 @@ const setupConversationWebSocket = () => {
     // Listen for conversation-specific events
     window.Echo.private(`conversation.${effectiveConversationId.value}`)
         .listen(".MessageSent", (e) => {
-            console.log("💬 Message received in conversation:", {
-                message: e.message,
-                read_at: e.message.read_at,
-                isOwnMessage: e.message.user_id === authStore.user.id,
-                shouldHaveReadReceipt:
-                    e.message.read_at &&
-                    e.message.user_id === authStore.user.id,
-            });
-            // If the message is for this conversation, add it
             if (e.message.conversation_id == effectiveConversationId.value) {
-                // Ensure read_at is null for new messages from others
-                if (e.message.user_id !== authStore.user.id) {
-                    e.message.read_at = null;
+                // Skip if it's our own message (we already added it via API)
+                if (e.message.user_id === authStore.user.id) {
+                    console.log("✅ Skipping own message from WebSocket");
+                    return;
                 }
+
                 chatStore.addMessage(e.message);
-                // Mark as read if we're the recipient
+
                 if (e.message.user_id !== authStore.user.id) {
                     markMessagesAsRead();
                 }

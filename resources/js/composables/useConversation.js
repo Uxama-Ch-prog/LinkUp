@@ -185,7 +185,7 @@ export function useConversation(props) {
             console.error("Error marking messages as read:", error);
         }
     };
-    // Send message
+    // resources/js/composables/useConversation.js
     const sendMessage = async () => {
         if (!newMessage.value.trim() && attachments.value.length === 0) return;
 
@@ -195,54 +195,33 @@ export function useConversation(props) {
         const formData = new FormData();
         formData.append("conversation_id", effectiveConversationId.value);
 
-        // Only append body if there's text
         if (newMessage.value.trim()) {
             formData.append("body", newMessage.value.trim());
         }
 
-        // Add attachments if any - FIXED: Use attachments[] format
+        // Add attachments if any
         if (attachments.value.length > 0) {
-            attachments.value.forEach((attachment) => {
-                // Use attachments[] for array format
-                formData.append("attachments[]", attachment.file);
+            attachments.value.forEach((attachment, index) => {
+                formData.append(`attachments[${index}]`, attachment.file);
             });
         }
 
-        console.log("📤 Sending message with form data:");
-        console.log("- Conversation ID:", effectiveConversationId.value);
-        console.log("- Message body:", newMessage.value.trim());
-        console.log("- Attachments:", attachments.value.length);
-
-        // Log form data entries for debugging
-        for (let pair of formData.entries()) {
-            console.log(pair[0], pair[1]);
-        }
-
         try {
+            // ⚠️ DON'T add the message locally before sending
+            // Remove any code that adds the message to chatStore.messages here
+
             const message = await chatStore.sendMessage(formData);
+
+            // Only clear after successful send
             newMessage.value = "";
-
-            // Clear attachments after sending
             clearAttachments();
-
-            // Handle typing stopped
             handleTyping(false);
 
             return message;
         } catch (error) {
-            console.error("❌ Error sending message:", error);
-
-            // Log the actual error response from server
-            if (error.response?.data) {
-                console.error("Server response:", error.response.data);
-                sendError.value =
-                    error.response.data.message ||
-                    error.response.data.errors?.attachments?.[0] ||
-                    "Failed to send message";
-            } else {
-                sendError.value = error.message || "Failed to send message";
-            }
-
+            sendError.value =
+                error.response?.data?.message || "Failed to send message";
+            console.error("Error sending message:", error);
             throw error;
         } finally {
             isSending.value = false;

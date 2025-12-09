@@ -176,7 +176,7 @@ export const useChatStore = defineStore("chat", () => {
                 },
                 withCredentials: true,
             });
-
+            // Add the message from API response
             messages.value.push(response.data);
             return response.data;
         } catch (error) {

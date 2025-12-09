@@ -172,10 +172,7 @@ public function sendMessage($conversationId, $userId, $body, $type = 'text', $at
             // Load relationships
             $conversation->load(['participants', 'latestMessage']);
 
-            // Broadcast NEW conversation event
-             foreach ($conversation->participants as $participant) {
-            broadcast(new ConversationCreated($conversation))->toOthers();
-        }
+       broadcast(new ConversationCreated($conversation))->toOthers();
             return $conversation;
         });
     }

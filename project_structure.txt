@@ -1,0 +1,190 @@
+.editorconfig
+.env
+.git
+.gitattributes
+.gitignore
+README.md
+app
+  Events
+    CallAccepted.php
+    CallEnded.php
+    CallInitiated.php
+    CallRejected.php
+    ConversationCreated.php
+    ConversationDeleted.php
+    ConversationRead.php
+    ConversationRestored.php
+    MessageDeleted.php
+    MessageRead.php
+    MessageSent.php
+    MessageUpdated.php
+    ReactionAdded.php
+    ReactionRemoved.php
+    UserStatusUpdated.php
+    UserTyping.php
+    WebRTCEvent.php
+  Http
+    Controllers
+      AuthController.php
+      ChatController.php
+      Controller.php
+      MessageController.php
+      ReactionController.php
+      VideoCallController.php
+    Kernel.php
+    Middleware
+      Authenticate.php
+      RedirectIfAuthenticated.php
+    Requests
+      CreateConversationRequest.php
+      StoreMessageRequest.php
+  Listeners
+    BroadcastUserStatus.php
+    ProcessPendingWebRTCEvents.php
+  Models
+    Conversation.php
+    Message.php
+    Participant.php
+    Reaction.php
+    User.php
+    VideoCall.php
+  Providers
+    AppServiceProvider.php
+    BroadcastServiceProvider.php
+    EventServiceProvider.php
+    RouteServiceProvider.php
+  Services
+    ChatService.php
+artisan
+bootstrap
+  app.php
+  cache
+    .gitignore
+    packages.php
+    services.php
+  providers.php
+composer.json
+composer.lock
+config
+  app.php
+  auth.php
+  broadcasting.php
+  cache.php
+  cors.php
+  database.php
+  filesystems.php
+  logging.php
+  mail.php
+  queue.php
+  reverb.php
+  sanctum.php
+  services.php
+  session.php
+database
+  .gitignore
+  factories
+    UserFactory.php
+  migrations
+    0001_01_01_000000_create_users_table.php
+    0001_01_01_000001_create_cache_table.php
+    0001_01_01_000002_create_jobs_table.php
+    2025_10_31_131208_create_conversations_table.php
+    2025_10_31_131306_create_messages_table.php
+    2025_10_31_131412_create_participants_table.php
+    2025_10_31_133833_create_personal_access_tokens_table.php
+    2025_11_02_060556_add_online_status_to_users_table.php
+    2025_11_02_142114_add_missing_columns_to_users_table.php
+    2025_11_03_100454_create_reactions_table.php
+    2025_11_07_003634_create_video_calls_table.php
+    2025_11_30_003111_create_deleted_conversations_table.php
+  seeders
+    DatabaseSeeder.php
+    UsersTableSeeder.php
+get_structure.php
+node_modules
+package-lock.json
+package.json
+phpunit.xml
+project_structure.txt
+public
+  .htaccess
+  favicon.ico
+  hot
+  index.php
+  robots.txt
+  storage
+resources
+  css
+    app.css
+  js
+    App.vue
+    app.js
+    bootstrap.js
+    components
+      Chat
+        Conversation
+          ConversationHeader.vue
+          ErrorMessage.vue
+          FilePreview.vue
+          FileUploadButton.vue
+          MessageActions.vue
+          MessageAttachments.vue
+          MessageBubble.vue
+          MessageEditForm.vue
+          MessageInput.vue
+          MessageReactions.vue
+          MessageTimestamp.vue
+          MessagesArea.vue
+          SendButton.vue
+          TypingIndicator.vue
+        EmptyConversationState.vue
+        Header
+          LogoSection.vue
+          SearchSection.vue
+          UserActions
+            NotificationBell.vue
+            UserActions.vue
+            UserProfileDropdown.vue
+        Header.vue
+        NewChatModal.vue
+        Sidebar
+          ConversationActions.vue
+          ConversationList.vue
+        Sidebar.vue
+      ReactionPicker.vue
+      SearchModal.vue
+      VideoCall.vue
+    composables
+      useConversation.js
+      useConversationUtils.js
+      useMessageActions.js
+      useMessageUtils.js
+    pages
+      Auth
+        Login.vue
+        Register.vue
+      Chat
+        Conversation.vue
+        Dashboard.vue
+    router
+      index.js
+    stores
+      auth.js
+      chat.js
+      index.js
+  views
+    app.blade.php
+routes
+  api.php
+  channels.php
+  console.php
+  web.php
+storage
+tests
+  Feature
+    ExampleTest.php
+  TestCase.php
+  Unit
+    ExampleTest.php
+vendor
+vite.config.js

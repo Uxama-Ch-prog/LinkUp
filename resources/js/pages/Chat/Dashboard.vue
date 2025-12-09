@@ -137,35 +137,10 @@ function initializeRealtimeListeners() {
                 }
             })
             .listen(".ConversationCreated", (e) => {
-                console.log(
-                    "💬 NEW conversation created via WebSocket:",
-                    e.conversation
-                );
-
-                // Check if the current user is a participant in this conversation
-                const isParticipant = e.conversation.participants?.some(
-                    (p) => p.id == authStore.user?.id
-                );
-
-                if (isParticipant) {
-                    console.log(
-                        "✅ Current user is participant, adding conversation to sidebar"
-                    );
-
-                    // Use the store's handleNewConversation method to add it
-                    chatStore.handleNewConversation(e.conversation);
-
-                    // Force a UI update
-                    chatStore.conversations = [...chatStore.conversations];
-
-                    console.log(
-                        "✅ Conversation added to sidebar in real-time"
-                    );
-                } else {
-                    console.log(
-                        "⚠️ Current user is not a participant, ignoring"
-                    );
-                }
+                // Note the dot prefix
+                console.log("💬 NEW conversation created:", e.conversation);
+                chatStore.handleNewConversation(e.conversation);
+                refreshConversations();
             })
             .listen(".ConversationRestored", (e) => {
                 console.log("🔄 ConversationRestored event received:", {

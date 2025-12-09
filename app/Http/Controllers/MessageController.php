@@ -123,7 +123,9 @@ public function store(Request $request)
                 'conversation_id' => $conversation->id,
                 'participant_count' => $conversation->participants->count()
             ]);
-            broadcast(new ConversationCreated($conversation))->toOthers();
+           if ($conversation && $conversation->messages()->count() === 1) {
+    broadcast(new ConversationCreated($conversation))->toOthers();
+}
         }
         // === END ADDED SECTION ===
         
