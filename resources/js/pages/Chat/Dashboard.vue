@@ -105,7 +105,6 @@ onUnmounted(() => {
     }
 });
 
-// Methods
 function initializeRealtimeListeners() {
     if (!authStore.user?.id) return;
 
@@ -121,12 +120,22 @@ function initializeRealtimeListeners() {
 
         window.Echo.private(`user.${authStore.user.id}`)
             .listen(".MessageSent", (e) => {
-                console.log("💬 Message received via user channel:", e.message);
+                console.log("💬 Message received via user channel:", {
+                    messageId: e.message.id,
+                    fromUser: e.message.user_id,
+                    toUser: authStore.user?.id,
+                    isOwnMessage: e.message.user_id === authStore.user?.id,
+                    currentRoute: route.path,
+                });
 
                 // Check if this message is for the current user
                 if (e.message && e.message.user_id !== authStore.user?.id) {
                     // Process the message in store
                     chatStore.handleIncomingMessage(e.message);
+
+                    console.log(
+                        "📨 Message received, but NOT marking as read (user is on dashboard)"
+                    );
 
                     // Show notification if not viewing the conversation
                     if (
@@ -137,10 +146,25 @@ function initializeRealtimeListeners() {
                 }
             })
             .listen(".ConversationCreated", (e) => {
-                // Note the dot prefix
-                console.log("💬 NEW conversation created:", e.conversation);
-                chatStore.handleNewConversation(e.conversation);
-                refreshConversations();
+                // Add detailed logging
+                console.log("💬 NEW conversation created EVENT RECEIVED:", {
+                    conversation: e.conversation,
+                    conversationId: e.conversation?.id,
+                    participantCount: e.conversation?.participants?.length,
+                    isGroup: e.conversation?.is_group,
+                    eventType: "ConversationCreated",
+                });
+
+                if (e.conversation) {
+                    chatStore.handleNewConversation(e.conversation);
+                    refreshConversations();
+
+                    console.log(
+                        "✅ ConversationCreated event processed successfully"
+                    );
+                } else {
+                    console.error("❌ No conversation data in event:", e);
+                }
             })
             .listen(".ConversationRestored", (e) => {
                 console.log("🔄 ConversationRestored event received:", {
@@ -148,7 +172,6 @@ function initializeRealtimeListeners() {
                     participants: e.conversation?.participants?.length,
                     fullEvent: e,
                 });
-                // Make sure we're passing the conversation object
                 if (e.conversation) {
                     chatStore.handleConversationRestored(e.conversation);
                     refreshConversations();
@@ -160,13 +183,11 @@ function initializeRealtimeListeners() {
                 }
             })
             .listen(".MessageRead", (e) => {
-                // ADDED DOT PREFIX HERE
                 console.log("👀 Message read update:", e);
                 handleMessageReadUpdate(e);
                 refreshConversations();
             })
             .listen(".ConversationDeleted", (e) => {
-                // Add dot prefix
                 console.log("🗑️ Conversation deleted:", e);
                 chatStore.handleConversationDeleted(e.conversation_id);
                 refreshConversations();
@@ -181,7 +202,7 @@ function initializeRealtimeListeners() {
                 handleUserTyping(e);
             });
 
-        console.log("✅ Real-time listeners initialized");
+        console.log("✅ Real-time listeners initialized successfully");
     } catch (error) {
         console.error("❌ Error initializing real-time listeners:", error);
     }

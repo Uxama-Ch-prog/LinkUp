@@ -127,55 +127,65 @@ public function sendMessage($conversationId, $userId, $body, $type = 'text', $at
             ->count();
     }
 
-    public function createConversation(User $user, array $userIds, ?string $name = null, bool $isGroup = false)
-    {
-        return DB::transaction(function () use ($user, $userIds, $name, $isGroup) {
-            // For non-group chats (1-on-1), check if conversation already exists
-            if (! $isGroup && count($userIds) === 1) {
-                $otherUserId = $userIds[0];
+public function createConversation(User $user, array $userIds, ?string $name = null, bool $isGroup = false)
+{
+    return DB::transaction(function () use ($user, $userIds, $name, $isGroup) {
+        // For non-group chats (1-on-1), check if conversation already exists
+        if (!$isGroup && count($userIds) === 1) {
+            $otherUserId = $userIds[0];
 
-                // Check if there's an existing conversation between these two users
-                $existingConversation = $this->findExistingConversation($user->id, $otherUserId);
+            // Check if there's an existing conversation between these two users
+            $existingConversation = $this->findExistingConversation($user->id, $otherUserId);
 
-                if ($existingConversation) {
-                    // Check if this conversation was deleted by the current user
-                    if ($existingConversation->isDeletedForUser($user->id)) {
-                        // Restore the conversation for this user
-                        $existingConversation->restoreForUser($user->id);
+            if ($existingConversation) {
+                // Check if this conversation was deleted by the current user
+                if ($existingConversation->isDeletedForUser($user->id)) {
+                    // Restore the conversation for this user
+                    $existingConversation->restoreForUser($user->id);
 
-                        // Load the conversation with fresh data
-                        $existingConversation->load(['participants', 'latestMessage']);
+                    // Load the conversation with fresh data
+                    $existingConversation->load(['participants', 'latestMessage']);
 
-                        // Broadcast restoration event to ALL participants
-                        broadcast(new ConversationRestored($existingConversation));
+                    // Broadcast restoration event to ALL participants
+                    broadcast(new ConversationRestored($existingConversation));
 
-                        return $existingConversation;
-                    }
-
-                    // Conversation exists and is not deleted, return it
-                    return $existingConversation->load(['participants', 'latestMessage']);
+                    return $existingConversation;
                 }
+
+                // Conversation exists and is not deleted, return it
+                return $existingConversation->load(['participants', 'latestMessage']);
             }
+        }
 
-            // CREATE NEW CONVERSATION - This is where you add the code
-            $conversation = Conversation::create([
-                'name' => $name,
-                'is_group' => $isGroup,
-                'created_by' => $user->id,
-                'last_message_at' => now(),
-            ]);
+        // CREATE NEW CONVERSATION
+        $conversation = Conversation::create([
+            'name' => $name,
+            'is_group' => $isGroup,
+            'created_by' => $user->id,
+            'last_message_at' => now(),
+        ]);
 
-            // Add participants
-            $participantIds = array_merge([$user->id], $userIds);
-            $conversation->participants()->attach($participantIds);
+        // Add participants
+        $participantIds = array_merge([$user->id], $userIds);
+        $conversation->participants()->attach($participantIds);
 
-            // Load relationships
-            $conversation->load(['participants', 'latestMessage']);
+        // Load relationships
+        $conversation->load(['participants', 'latestMessage']);
 
-       broadcast(new ConversationCreated($conversation))->toOthers();
-            return $conversation;
-        });
-    }
+        // IMPORTANT: Broadcast conversation creation to all participants EXCEPT the creator
+        // The creator already knows about the conversation since they created it
+        broadcast(new ConversationCreated($conversation))->toOthers();
+        
+        \Log::info('New conversation created and broadcasted', [
+            'conversation_id' => $conversation->id,
+            'participants' => $participantIds,
+            'is_group' => $isGroup,
+            'creator_id' => $user->id
+        ]);
+
+        return $conversation;
+    });
+}
 
     /**
      * Find existing conversation between two users

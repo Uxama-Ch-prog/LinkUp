@@ -85,6 +85,23 @@ public function store(Request $request)
         
         \Log::info('Creating message via ChatService');
         
+        // Check if this is the first message in the conversation
+        $isNewConversation = false;
+        $conversationBeforeMessage = Conversation::find($validated['conversation_id']);
+        
+        if ($conversationBeforeMessage) {
+            $messageCountBefore = $conversationBeforeMessage->messages()->count();
+            $isNewConversation = ($messageCountBefore === 0);
+            \Log::info('Message count before sending:', [
+                'conversation_id' => $validated['conversation_id'],
+                'count' => $messageCountBefore,
+                'is_new_conversation' => $isNewConversation
+            ]);
+        } else {
+            // Conversation doesn't exist (shouldn't happen, but just in case)
+            $isNewConversation = true;
+        }
+        
         // Use ChatService to send message
         $message = $this->chatService->sendMessage(
             $validated['conversation_id'],
@@ -112,22 +129,20 @@ public function store(Request $request)
         // Handle conversation restoration if needed
         $this->chatService->handleNewMessage($message, $validated['conversation_id'], $user->id);
         
-        // === ADD THIS SECTION ===
         // Load conversation with participants for broadcasting
         $conversation = Conversation::with(['participants', 'latestMessage'])
             ->find($validated['conversation_id']);
         
         // If this is the first message in a new conversation, broadcast ConversationCreated
-        if ($conversation && $conversation->messages()->count() === 1) {
+        if ($conversation && $isNewConversation) {
             \Log::info('First message in new conversation, broadcasting ConversationCreated', [
                 'conversation_id' => $conversation->id,
-                'participant_count' => $conversation->participants->count()
+                'participant_count' => $conversation->participants->count(),
+                'was_new_conversation' => $isNewConversation
             ]);
-           if ($conversation && $conversation->messages()->count() === 1) {
-    broadcast(new ConversationCreated($conversation))->toOthers();
-}
+            
+            broadcast(new ConversationCreated($conversation))->toOthers();
         }
-        // === END ADDED SECTION ===
         
         // Broadcast the message to all participants
         broadcast(new MessageSent($message))->toOthers();
@@ -148,7 +163,6 @@ public function store(Request $request)
         ], 500);
     }
 }
-
     public function destroy($id)
     {
         \Log::info('Deleting message:', ['message_id' => $id, 'user_id' => auth()->id()]);
