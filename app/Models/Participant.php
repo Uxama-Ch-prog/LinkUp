@@ -13,10 +13,12 @@ class Participant extends Model
         'conversation_id',
         'user_id',
         'last_read_at',
+        'is_favourite',
     ];
 
     protected $casts = [
         'last_read_at' => 'datetime',
+        'is_favourite' => 'boolean',
     ];
 
     public function conversation()

@@ -4,7 +4,7 @@
         <div class="flex items-center space-x-3">
             <div class="relative">
                 <div
-                    class="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg"
+                    class="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-md"
                 >
                     <svg
                         class="w-6 h-6 text-white"
@@ -20,13 +20,9 @@
                         />
                     </svg>
                 </div>
-                <div
-                    class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-indigo-600 shadow-sm"
-                ></div>
             </div>
             <div>
-                <h1 class="text-xl font-bold text-white">LinkUp</h1>
-                <p class="text-indigo-200 text-xs">Real-time Chat</p>
+                <h1 class="text-xl font-bold text-gray-900">LinkUp</h1>
             </div>
         </div>
     </div>

@@ -58,7 +58,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/conversations/{id}', [ChatController::class, 'getConversation']);
         Route::post('/conversations/{conversationId}/read', [ChatController::class, 'markAsRead']);
         Route::post('/conversations/{conversationId}/typing', [ChatController::class, 'typing']);
-
+        // Add this route to your api.php file
+        Route::post('/conversations/{conversation}/favourite', [ChatController::class, 'toggleFavourite']);
         // Users
         Route::get('/users', [ChatController::class, 'getUsers']);
 

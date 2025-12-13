@@ -25,9 +25,9 @@ class Conversation extends Model
     // Relationship with participants
     public function participants()
     {
-        return $this->belongsToMany(User::class, 'participants') // FIX: Changed to 'participants'
-            ->withTimestamps()
-            ->withPivot('last_read_at');
+        return $this->belongsToMany(User::class, 'participants') 
+              ->withPivot(['last_read_at','is_favourite'])
+            ->withTimestamps();
     }
 
     // Relationship with messages

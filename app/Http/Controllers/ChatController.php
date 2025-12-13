@@ -280,7 +280,26 @@ class ChatController extends Controller
             ], 500);
         }
     }
+public function toggleFavourite(Conversation $conversation, Request $request)
+{
+    // Check if user is a participant
+    if (!$conversation->participants()->where('user_id', auth()->id())->exists()) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
 
+    // Update favourite status in pivot table
+    $conversation->participants()->updateExistingPivot(auth()->id(), [
+        'is_favourite' => $request->is_favourite
+    ]);
+
+    // Broadcast event if needed
+    // broadcast(new ConversationFavouriteToggled($conversation, auth()->user(), $request->is_favourite));
+
+    return response()->json([
+        'message' => 'Favourite status updated',
+        'conversation' => $conversation->load('participants')
+    ]);
+}
     /**
      * Get deleted conversations (for testing/management)
      */

@@ -845,7 +845,30 @@ export const useChatStore = defineStore("chat", () => {
             console.error("Error marking message as read:", error);
         }
     }
+    // In your chat store (stores/chat.js)
+    async function toggleConversationFavourite(conversationId, isFavourite) {
+        try {
+            const response = await axios.post(
+                `/api/chat/conversations/${conversationId}/favourite`,
+                {
+                    is_favourite: isFavourite,
+                }
+            );
 
+            // Update local state
+            const conversation = this.conversations.find(
+                (c) => c.id === conversationId
+            );
+            if (conversation) {
+                conversation.is_favourite = isFavourite;
+            }
+
+            return response.data;
+        } catch (error) {
+            console.error("Error toggling favourite:", error);
+            throw error;
+        }
+    }
     return {
         conversations,
         currentConversation,
@@ -902,5 +925,6 @@ export const useChatStore = defineStore("chat", () => {
         forceUpdate,
         addReactionToMessage,
         removeReactionFromMessage,
+        toggleConversationFavourite,
     };
 });

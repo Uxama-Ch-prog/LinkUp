@@ -2,56 +2,31 @@
 <template>
     <div class="relative group">
         <button
-            class="flex items-center space-x-3 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-xl px-3 py-2 transition-all duration-200 border border-white/20 hover:border-white/30"
+            class="flex items-center space-x-1 bg-gray-100 hover:bg-gray-200 rounded-full p-1.5 transition-all duration-200 border border-gray-300 hover:border-gray-400"
         >
-            <!-- User Avatar -->
+            <!-- User Avatar Only -->
             <div class="relative">
                 <div
-                    class="w-8 h-8 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-lg"
+                    class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-md"
                 >
                     {{ getUserInitials }}
                 </div>
                 <!-- Online Status -->
                 <div
-                    class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-indigo-600 shadow-sm"
+                    class="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white shadow-sm"
                 ></div>
             </div>
-
-            <!-- User Info -->
-            <div class="hidden md:block text-left">
-                <p class="text-white text-sm font-semibold leading-none">
-                    {{ authStore.user?.name || "User" }}
-                </p>
-                <p class="text-indigo-200 text-xs leading-none mt-1">
-                    {{ authStore.user?.email || "Online" }}
-                </p>
-            </div>
-
-            <!-- Dropdown Arrow -->
-            <svg
-                class="w-4 h-4 text-white/60 transition-transform duration-200 group-hover:rotate-180"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-            >
-                <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                />
-            </svg>
         </button>
 
         <!-- Dropdown Menu -->
         <div
-            class="absolute right-0 top-full mt-2 w-64 bg-white/95 backdrop-blur-lg rounded-xl shadow-2xl border border-white/20 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50"
+            class="absolute right-0 top-full mt-2 w-64 bg-white/95 backdrop-blur-lg rounded-xl shadow-2xl border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform translate-y-2 group-hover:translate-y-0 z-50"
         >
             <!-- User Summary -->
             <div class="p-4 border-b border-gray-100/50">
                 <div class="flex items-center space-x-3">
                     <div
-                        class="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg"
+                        class="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg"
                     >
                         {{ getUserInitials }}
                     </div>

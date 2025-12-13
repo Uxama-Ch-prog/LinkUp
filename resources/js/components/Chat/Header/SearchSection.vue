@@ -1,12 +1,12 @@
 <!-- resources/js/components/Chat/Header/SearchSection.vue -->
 <template>
-    <div class="hidden md:flex items-center space-x-6">
+    <div class="hidden md:flex items-center">
         <button
             @click="emit('search')"
-            class="group flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-xl transition-all duration-200 border border-white/20 hover:border-white/30"
+            class="group flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all duration-200 hover:border-gray-400"
         >
             <svg
-                class="w-4 h-4 text-white/80 group-hover:text-white"
+                class="w-4 h-4 text-gray-600 group-hover:text-gray-800"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -19,11 +19,8 @@
                 />
             </svg>
             <span
-                class="text-white/80 group-hover:text-white text-sm font-medium"
+                class="text-gray-600 group-hover:text-gray-800 text-sm font-medium"
                 >Search messages...</span
-            >
-            <kbd class="text-xs bg-white/20 text-white/60 px-1.5 py-0.5 rounded"
-                >⌘K</kbd
             >
         </button>
     </div>
